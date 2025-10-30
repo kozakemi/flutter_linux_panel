@@ -2,7 +2,7 @@
 
 版本：1.0.0  ·  传输：WebSocket(JSON)
 
-后端建议监听：`ws://<host>:<port>/wifi`（端口示例：`9901`）。
+后端监听：`ws://<host>:<port>/wifi`（端口示例：`8080`）。
 
 ## 设计原则
 
@@ -54,7 +54,7 @@
 
 除特别说明，所有响应均包含：`success`、`error`、`message`、`data`。
 
-### 1) Ping（健康检查）
+### 1) Ping（可选
 - 请求：`ping_request`
 ```json
 { "type": "ping_request", "data": {} }
@@ -129,7 +129,8 @@
         "signal": 78,
         "security": "WPA2",
         "channel": 6,
-        "frequency_mhz": 2437
+        "frequency_mhz": 2437,
+        "recorded": true,
       },
       {
         "ssid": "CafeWiFi",
@@ -137,7 +138,8 @@
         "signal": 55,
         "security": "Open",
         "channel": 1,
-        "frequency_mhz": 2412
+        "frequency_mhz": 2412,
+        "recorded": false
       }
     ]
   }
@@ -152,8 +154,18 @@
   "data": {
     "ssid": "MyHomeNetwork",
     "password": "mysecretpassword",
-    "bssid": "optional",
-    "security": "WPA2",
+    "timeout_ms": 20000
+  }
+}
+
+```
+尝试无密码连接（已经存在密码的网络）
+```json
+{
+  "type": "wifi_connect_request",
+  "data": {
+    "ssid": "MyHomeNetwork",
+    "password": "",
     "timeout_ms": 20000
   }
 }
@@ -165,10 +177,6 @@
   "success": true,
   "error": 0,
   "data": {
-    "connected": true,
-    "ssid": "MyHomeNetwork",
-    "interface": "wlan0",
-    "ip": "192.168.1.23"
   }
 }
 ```
@@ -177,9 +185,8 @@
 {
   "type": "wifi_connect_response",
   "success": false,
-  "error": -1,
-  "message": "unknown error",
-  "data": { "connected": false }
+  "error": 1,
+  "data": {  }
 }
 ```
 
@@ -194,7 +201,7 @@
   "type": "wifi_disconnect_response",
   "success": true,
   "error": 0,
-  "data": { "disconnected": true }
+  "data": { }
 }
 ```
 

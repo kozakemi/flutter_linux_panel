@@ -1,6 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:virtual_keyboard_multi_language/virtual_keyboard_multi_language.dart';
+
+import '../models/wifi_models.dart';
+import '../services/wifi_websocket_service.dart';
+import '../services/websocket_client.dart';
 
 class WiFiSettingsPage extends StatefulWidget {
   const WiFiSettingsPage({super.key});
@@ -10,54 +16,158 @@ class WiFiSettingsPage extends StatefulWidget {
 }
 
 class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
-  bool wifiEnabled = true;
-  String? connectedSsid;
-
-  final List<String> myNetworks = [];
-
-  final List<String> otherNetworks = [];
+  final WiFiWebSocketService _wifiService = WiFiWebSocketService.instance;
+  
+  WiFiStatus _wifiStatus = const WiFiStatus(enabled: false, connected: false);
+  WiFiScanResult _scanResult = const WiFiScanResult(networks: []);
+  WebSocketConnectionState _connectionState = WebSocketConnectionState.disconnected;
+  
+  bool _isScanning = false;
+  bool _isConnecting = false;
+  
+  StreamSubscription? _statusSubscription;
+  StreamSubscription? _scanSubscription;
+  StreamSubscription? _connectionEventSubscription;
+  StreamSubscription? _connectionStateSubscription;
 
   @override
   void initState() {
     super.initState();
-    _loadStatusAndScan();
+    _initializeService();
   }
 
-  Future<void> _loadStatusAndScan() async {
-    final list = await _mockScan();
-    setState(() {
-      myNetworks.clear();
-      otherNetworks.clear();
-      for (final ap in list) {
-        final ssid = ap['ssid'] as String? ?? '';
-        if (ssid.isEmpty) continue;
-        if (ssid == connectedSsid) continue;
-        if (ssid.startsWith('CMCC')) {
-          myNetworks.add(ssid);
-        } else {
-          otherNetworks.add(ssid);
+  @override
+  void dispose() {
+    _statusSubscription?.cancel();
+    _scanSubscription?.cancel();
+    _connectionEventSubscription?.cancel();
+    _connectionStateSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// 初始化 WebSocket 服务
+  Future<void> _initializeService() async {
+    try {
+      await _wifiService.initialize();
+      
+      // 监听状态变化
+      _statusSubscription = _wifiService.statusStream.listen((status) {
+        if (mounted) {
+          setState(() {
+            _wifiStatus = status;
+          });
         }
+      });
+      
+      // 监听扫描结果
+      _scanSubscription = _wifiService.scanStream.listen((scanResult) {
+        if (mounted) {
+          setState(() {
+            _scanResult = scanResult;
+            _isScanning = false;
+          });
+        }
+      });
+      
+      // 监听连接事件
+      _connectionEventSubscription = _wifiService.connectionEventStream.listen((message) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message)),
+          );
+        }
+      });
+      
+      // 监听 WebSocket 连接状态
+      _connectionStateSubscription = _wifiService.connectionStateStream.listen((state) {
+        if (mounted) {
+          setState(() {
+            _connectionState = state;
+          });
+        }
+      });
+      
+      // 初始扫描
+      await _loadStatusAndScan();
+      
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('连接服务器失败: $e')),
+        );
       }
+    }
+  }
+
+  /// 加载状态并扫描网络
+  Future<void> _loadStatusAndScan() async {
+    setState(() {
+      _isScanning = true;
     });
+    
+    // 刷新状态
+    final statusError = await _wifiService.refreshStatus();
+    if (statusError != WiFiError.ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('获取状态失败: ${statusError.message}')),
+      );
+    }
+    
+    // 扫描网络
+    final scanError = await _wifiService.scanNetworks();
+    if (scanError != WiFiError.ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('扫描网络失败: ${scanError.message}')),
+      );
+      setState(() {
+        _isScanning = false;
+      });
+    }
   }
 
-  Future<List<Map<String, dynamic>>> _mockScan() async {
-    await Future.delayed(const Duration(milliseconds: 150));
-    return const [];
-  }
-
+  /// 开关 Wi-Fi
   Future<void> _toggleWifi(bool value) async {
-    setState(() => wifiEnabled = value);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(value ? 'Wi‑Fi 已开启（模拟）' : 'Wi‑Fi 已关闭（模拟）'),
-        duration: const Duration(milliseconds: 1200),
-      ),
-    );
-    await _loadStatusAndScan();
+    final error = await _wifiService.enableWiFi(value);
+    
+    if (mounted) {
+      if (error == WiFiError.ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(value ? 'Wi-Fi 已开启' : 'Wi-Fi 已关闭'),
+            duration: const Duration(milliseconds: 1200),
+          ),
+        );
+        if (value) {
+          await _loadStatusAndScan();
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('操作失败: ${error.message}')),
+        );
+      }
+    }
   }
 
+  /// 连接到 Wi-Fi 网络
   Future<void> _connectFlow(String ssid) async {
+    // 检查是否已连接到该网络
+    if (_wifiService.isConnectedTo(ssid)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已连接到 $ssid')),
+      );
+      return;
+    }
+
+    // 检查网络是否需要密码
+    final requiresPassword = _wifiService.networkRequiresPassword(ssid);
+    
+    if (!requiresPassword) {
+      // 直接连接无密码网络
+      await _connectToNetwork(ssid, '');
+      return;
+    }
+
+    // 显示密码输入对话框
     final TextEditingController pwdController = TextEditingController();
     final FocusNode pwdFocusNode = FocusNode();
 
@@ -80,29 +190,30 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                     .showSnackBar(const SnackBar(content: Text('请输入密码')));
                 return;
               }
+              
               setModalState(() {
                 connecting = true;
               });
-              await Future.delayed(const Duration(milliseconds: 500));
-              final ok = inputPassword.isNotEmpty;
+
+              // 连接网络
+              final error = await _wifiService.connectToNetwork(
+                ssid: ssid,
+                password: inputPassword,
+              );
 
               // 弹窗可能已经关闭，检查 context 是否有效
               if (!ctx.mounted) return;
 
-              if (ok) {
+              if (error == WiFiError.ok) {
                 Navigator.of(ctx).pop();
-                setState(() {
-                  connectedSsid = ssid;
-                });
                 ScaffoldMessenger.of(context)
-                    .showSnackBar(SnackBar(content: Text('已连接到 $ssid（模拟）')));
-                await _loadStatusAndScan();
+                    .showSnackBar(SnackBar(content: Text('已连接到 $ssid')));
               } else {
                 setModalState(() {
                   connecting = false;
                 });
                 ScaffoldMessenger.of(context)
-                    .showSnackBar(const SnackBar(content: Text('连接失败，请输入密码')));
+                    .showSnackBar(SnackBar(content: Text('连接失败: ${error.message}')));
               }
             }
 
@@ -134,6 +245,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                             ],
                           ),
                         ),
+                        const SizedBox(height: 8),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: TextField(
@@ -241,6 +353,57 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
     });
   }
 
+  /// 连接到网络的辅助方法
+  Future<void> _connectToNetwork(String ssid, String password) async {
+    setState(() {
+      _isConnecting = true;
+    });
+
+    final error = await _wifiService.connectToNetwork(
+      ssid: ssid,
+      password: password,
+    );
+
+    setState(() {
+      _isConnecting = false;
+    });
+
+    if (error == WiFiError.ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已连接到 $ssid')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('连接失败: ${error.message}')),
+      );
+    }
+  }
+
+  /// 断开当前网络连接
+  Future<void> _disconnectFromNetwork() async {
+    if (!_wifiStatus.connected) return;
+
+    setState(() {
+      _isConnecting = true;
+    });
+
+    final error = await _wifiService.disconnectFromNetwork();
+
+    setState(() {
+      _isConnecting = false;
+    });
+
+    if (error == WiFiError.ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已断开连接')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('断开连接失败: ${error.message}')),
+      );
+    }
+  }
+
   Widget _sectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -256,6 +419,8 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
   }
 
   Widget _section(List<Widget> tiles) {
+    if (tiles.isEmpty) return const SizedBox.shrink();
+    
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Material(
@@ -308,9 +473,15 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadStatusAndScan,
+            onPressed: _isScanning ? null : _loadStatusAndScan,
             tooltip: '刷新网络',
           ),
+          if (_wifiStatus.connected)
+            IconButton(
+              icon: const Icon(Icons.wifi_off),
+              onPressed: (_isConnecting) ? null : _disconnectFromNetwork,
+              tooltip: '断开连接',
+            ),
         ],
       ),
       body: ListView(
@@ -363,7 +534,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
             ListTile(
               title: const Text('无线局域网'),
               trailing: Switch(
-                value: wifiEnabled,
+                value: _wifiStatus.enabled,
                 onChanged: (v) => _toggleWifi(v),
               ),
             ),
@@ -372,7 +543,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
           const SizedBox(height: 24),
 
           // 当前连接网络
-          if (connectedSsid != null) ...[
+          if (_wifiStatus.connected && _wifiStatus.currentNetwork != null) ...[
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
@@ -387,7 +558,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
             _section([
               ListTile(
                 leading: const Icon(Icons.check, color: Colors.blue),
-                title: Text(connectedSsid!),
+                title: Text(_wifiStatus.currentNetwork!.ssid),
                 subtitle: const Text('已连接'),
                 trailing: const Wrap(
                   spacing: 12,
@@ -402,42 +573,36 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
             const SizedBox(height: 24),
           ],
 
-          _sectionHeader('我的网络'),
-          _section(
-            myNetworks
-                .map(
-                  (ssid) => ListTile(
-                    title: Text(ssid),
-                    trailing: const Icon(Icons.info_outline,
-                        size: 20, color: Colors.black54),
-                    onTap: () => _connectFlow(ssid),
-                  ),
-                )
-                .toList(),
-          ),
-
-          const SizedBox(height: 24),
-
-          _sectionHeader('其他网络'),
-          _section(
-            otherNetworks
-                .map(
-                  (ssid) => ListTile(
-                    title: Text(ssid),
-                    trailing: const Wrap(
-                      spacing: 12,
-                      children: [
-                        Icon(Icons.lock_outline,
-                            size: 20, color: Colors.black54),
-                        Icon(Icons.info_outline,
-                            size: 20, color: Colors.black54),
-                      ],
-                    ),
-                    onTap: () => _connectFlow(ssid),
-                  ),
-                )
-                .toList(),
-          ),
+          if (_wifiStatus.enabled && _scanResult.networks.isNotEmpty) ...[
+            _sectionHeader('可用网络'),
+            if (_isScanning)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else
+              _section(
+                _scanResult.networks
+                    .map(
+                      (network) => ListTile(
+                        title: Text(network.ssid),
+                        subtitle: Text('信号强度: ${network.signalPercentage}%'),
+                        trailing: Wrap(
+                          spacing: 12,
+                          children: [
+                            if (network.isSecured)
+                              const Icon(Icons.lock_outline,
+                                  size: 20, color: Colors.black54),
+                            const Icon(Icons.info_outline,
+                                size: 20, color: Colors.black54),
+                          ],
+                        ),
+                        onTap: () => _connectFlow(network.ssid),
+                      ),
+                    )
+                    .toList(),
+              ),
+          ],
         ],
       ),
     );
