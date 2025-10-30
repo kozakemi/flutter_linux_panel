@@ -476,12 +476,12 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
             onPressed: _isScanning ? null : _loadStatusAndScan,
             tooltip: '刷新网络',
           ),
-          if (_wifiStatus.connected)
-            IconButton(
-              icon: const Icon(Icons.wifi_off),
-              onPressed: (_isConnecting) ? null : _disconnectFromNetwork,
-              tooltip: '断开连接',
-            ),
+          // if (_wifiStatus.connected)
+          //   IconButton(
+          //     icon: const Icon(Icons.wifi_off),
+          //     onPressed: (_isConnecting) ? null : _disconnectFromNetwork,
+          //     tooltip: '断开连接',
+          //   ),
         ],
       ),
       body: ListView(
