@@ -10,7 +10,6 @@
 #include <thread>
 
 #include "flutter/generated_plugin_registrant.h"
-#include "wifi_channel.h"
 
 FlutterWindow::FlutterWindow(
     const flutter::FlutterViewController::ViewProperties view_properties,
@@ -29,8 +28,7 @@ bool FlutterWindow::OnCreate() {
 
   // Register Flutter plugins.
   RegisterPlugins(flutter_view_controller_->engine());
-  // Register Wi-Fi control channel.
-  RegisterWifiChannel(flutter_view_controller_.get());
+  // Wi‑Fi Platform Channel removed. Dart side will handle Wi‑Fi via nmcli.
 
   return true;
 }

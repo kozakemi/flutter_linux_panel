@@ -14,7 +14,6 @@ endif()
 add_executable(${BINARY_NAME}
   "flutter_window.cc"
   "main.cc"
-  "wifi_channel.cc"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
 )
 apply_standard_settings(${BINARY_NAME})

@@ -23,6 +23,13 @@
       "command": "LIBGL_ALWAYS_SOFTWARE=1 ./demo1 --bundle=. --fullscreen --enable-software-rendering",
       "options": { "cwd": "${workspaceFolder}/build/elinux/x64/release/bundle" },
       "problemMatcher": []
+    },
+    {
+      "label": "build:flutterpi",
+      "type": "shell",
+      "command": "flutterpi_tool build --release --arch=arm64 --target lib/main.dart",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
     }
   ]
 }

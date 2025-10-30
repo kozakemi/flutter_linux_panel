@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import '../services/wifi.dart';
 import 'package:virtual_keyboard_multi_language/virtual_keyboard_multi_language.dart';
 
 class WiFiSettingsPage extends StatefulWidget {
@@ -12,16 +11,11 @@ class WiFiSettingsPage extends StatefulWidget {
 
 class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
   bool wifiEnabled = true;
-  String? connectedSsid = 'ZTE-f6S6uY';
+  String? connectedSsid;
 
-  final List<String> myNetworks = [
-    'CMCC-tg5f',
-  ];
+  final List<String> myNetworks = [];
 
-  final List<String> otherNetworks = [
-    'CMCC-m5kf',
-    'Wireless_cn2',
-  ];
+  final List<String> otherNetworks = [];
 
   @override
   void initState() {
@@ -30,19 +24,14 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
   }
 
   Future<void> _loadStatusAndScan() async {
-    final st = await WiFiService.status();
-    final list = await WiFiService.scan();
+    final list = await _mockScan();
     setState(() {
-      wifiEnabled = st['enabled'] == true;
-      connectedSsid = (st['ssid'] as String?)?.isNotEmpty == true ? st['ssid'] as String : null;
-      // 用扫描结果更新分组（简单合并示例）
       myNetworks.clear();
       otherNetworks.clear();
       for (final ap in list) {
         final ssid = ap['ssid'] as String? ?? '';
         if (ssid.isEmpty) continue;
         if (ssid == connectedSsid) continue;
-        // 简单规则：包含 CMCC 归入“我的网络”，其他进“其他网络”
         if (ssid.startsWith('CMCC')) {
           myNetworks.add(ssid);
         } else {
@@ -52,16 +41,19 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
     });
   }
 
+  Future<List<Map<String, dynamic>>> _mockScan() async {
+    await Future.delayed(const Duration(milliseconds: 150));
+    return const [];
+  }
+
   Future<void> _toggleWifi(bool value) async {
     setState(() => wifiEnabled = value);
-    final ok = await WiFiService.enable(value);
-    if (!ok) {
-      setState(() => wifiEnabled = !value);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('切换 Wi‑Fi 失败')),
-      );
-      return;
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(value ? 'Wi‑Fi 已开启（模拟）' : 'Wi‑Fi 已关闭（模拟）'),
+        duration: const Duration(milliseconds: 1200),
+      ),
+    );
     await _loadStatusAndScan();
   }
 
@@ -84,32 +76,40 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
           builder: (BuildContext context, StateSetter setModalState) {
             Future<void> submit() async {
               if (inputPassword.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请输入密码')));
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(const SnackBar(content: Text('请输入密码')));
                 return;
               }
               setModalState(() {
                 connecting = true;
               });
-              final ok = await WiFiService.connect(ssid, inputPassword);
+              await Future.delayed(const Duration(milliseconds: 500));
+              final ok = inputPassword.isNotEmpty;
 
               // 弹窗可能已经关闭，检查 context 是否有效
               if (!ctx.mounted) return;
 
               if (ok) {
                 Navigator.of(ctx).pop();
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已连接到 $ssid')));
+                setState(() {
+                  connectedSsid = ssid;
+                });
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(SnackBar(content: Text('已连接到 $ssid（模拟）')));
                 await _loadStatusAndScan();
               } else {
                 setModalState(() {
                   connecting = false;
                 });
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('连接失败，请检查密码')));
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(const SnackBar(content: Text('连接失败，请输入密码')));
               }
             }
 
-            final keyboardHeight = 300.0;
+            const keyboardHeight = 300.0;
             return Padding(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+              padding:
+                  EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
               child: SafeArea(
                 child: AnimatedSize(
                   duration: const Duration(milliseconds: 200),
@@ -122,7 +122,11 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                           child: Row(
                             children: [
-                              Expanded(child: Text('连接到 $ssid', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
+                              Expanded(
+                                  child: Text('连接到 $ssid',
+                                      style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600))),
                               IconButton(
                                 icon: const Icon(Icons.close),
                                 onPressed: () => Navigator.of(ctx).pop(),
@@ -172,9 +176,12 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                                         final action = key.action;
                                         if (action == null) break;
                                         switch (action) {
-                                          case VirtualKeyboardKeyAction.Backspace:
+                                          case VirtualKeyboardKeyAction
+                                                .Backspace:
                                             if (inputPassword.isNotEmpty) {
-                                              inputPassword = inputPassword.substring(0, inputPassword.length - 1);
+                                              inputPassword =
+                                                  inputPassword.substring(0,
+                                                      inputPassword.length - 1);
                                             }
                                             break;
                                           case VirtualKeyboardKeyAction.Space:
@@ -207,7 +214,11 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                                 child: ElevatedButton.icon(
                                   onPressed: connecting ? null : submit,
                                   icon: connecting
-                                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2))
                                       : const Icon(Icons.wifi),
                                   label: const Text('连接'),
                                 ),
@@ -264,7 +275,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
     );
   }
 
-  Widget _wifiIcon({bool enabled = true}) {
+  Widget _wifiIcon() {
     return Container(
       width: 48,
       height: 48,
@@ -378,9 +389,9 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                 leading: const Icon(Icons.check, color: Colors.blue),
                 title: Text(connectedSsid!),
                 subtitle: const Text('已连接'),
-                trailing: Wrap(
+                trailing: const Wrap(
                   spacing: 12,
-                  children: const [
+                  children: [
                     Icon(Icons.lock_outline, size: 20, color: Colors.black54),
                     Icon(Icons.info_outline, size: 20, color: Colors.black54),
                   ],
@@ -413,9 +424,9 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                 .map(
                   (ssid) => ListTile(
                     title: Text(ssid),
-                    trailing: Wrap(
+                    trailing: const Wrap(
                       spacing: 12,
-                      children: const [
+                      children: [
                         Icon(Icons.lock_outline,
                             size: 20, color: Colors.black54),
                         Icon(Icons.info_outline,

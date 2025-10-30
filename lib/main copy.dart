@@ -76,8 +76,8 @@ class _ClockScreenState extends State<ClockScreen>
     // 模拟WiFi和MQTT状态检查 - 减少更新频率到每2秒一次
     _statusTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       // 只有当状态真正变化时才通知监听者
-      final newWifiStatus = true; // 实际应用中应该检查真实状态
-      final newMqttStatus = true; // 实际应用中应该检查真实状态
+      const newWifiStatus = true; // 实际应用中应该检查真实状态
+      const newMqttStatus = true; // 实际应用中应该检查真实状态
 
       if (wifiStatusNotifier.value != newWifiStatus) {
         wifiStatusNotifier.value = newWifiStatus;

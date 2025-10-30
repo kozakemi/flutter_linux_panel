@@ -36,7 +36,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _icon(String assetPath, {Color? color}) {
+  Widget _icon(String assetPath) {
     return SvgPicture.asset(
       assetPath,
       width: 24,
@@ -98,9 +98,7 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () => _showNotImplemented('蓝牙'),
             ),
           ]),
-
           const SizedBox(height: 24),
-
           _sectionHeader('显示与声音'),
           _section([
             ListTile(
@@ -122,9 +120,7 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () => _showNotImplemented('壁纸设置'),
             ),
           ]),
-
           const SizedBox(height: 24),
-
           _sectionHeader('系统与输入'),
           _section([
             ListTile(
@@ -140,7 +136,6 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () => _showNotImplemented('键盘设置'),
             ),
           ]),
-
           const SizedBox(height: 24),
         ],
       ),
