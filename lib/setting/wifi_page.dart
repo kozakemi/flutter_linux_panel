@@ -29,11 +29,15 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
   StreamSubscription? _scanSubscription;
   StreamSubscription? _connectionEventSubscription;
   StreamSubscription? _connectionStateSubscription;
+  
+  // 添加定时器变量
+  Timer? _statusUpdateTimer;
 
   @override
   void initState() {
     super.initState();
     _initializeService();
+    _startStatusUpdateTimer();
   }
 
   @override
@@ -42,7 +46,46 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
     _scanSubscription?.cancel();
     _connectionEventSubscription?.cancel();
     _connectionStateSubscription?.cancel();
+    _statusUpdateTimer?.cancel(); // 取消定时器
     super.dispose();
+  }
+
+  /// 启动状态更新定时器
+  void _startStatusUpdateTimer() {
+    _statusUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
+      print('WiFi 页面: 定时器触发 - 自动更新状态');
+      _autoUpdateStatus();
+    });
+  }
+
+  /// 自动更新状态（定时器回调）
+  Future<void> _autoUpdateStatus() async {
+    try {
+      // 刷新WiFi状态
+      final statusError = await _wifiService.refreshStatus();
+      if (statusError != WiFiError.ok) {
+        print('WiFi 页面: 定时器 - 获取状态失败: ${statusError.message}');
+        return;
+      }
+      
+      // 只有在WiFi开启时才扫描网络，避免不必要的请求
+      if (_wifiStatus.enabled && !_isScanning) {
+        print('WiFi 页面: 定时器 - WiFi已开启，执行网络扫描');
+        final scanError = await _wifiService.scanNetworks();
+        if (scanError != WiFiError.ok) {
+          print('WiFi 页面: 定时器 - 扫描网络失败: ${scanError.message}');
+        }
+      } else {
+        print('WiFi 页面: 定时器 - WiFi未开启或正在扫描，跳过网络扫描');
+      }
+    } catch (e) {
+      print('WiFi 页面: 定时器 - 自动更新出错: $e');
+    }
   }
 
   /// 初始化 WebSocket 服务
@@ -52,20 +95,24 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
       
       // 监听状态变化
       _statusSubscription = _wifiService.statusStream.listen((status) {
+        print('WiFi 页面: 收到状态更新 - enabled: ${status.enabled}, connected: ${status.connected}');
         if (mounted) {
           setState(() {
             _wifiStatus = status;
           });
+          print('WiFi 页面: 界面状态已更新 - enabled: ${_wifiStatus.enabled}, connected: ${_wifiStatus.connected}');
         }
       });
       
       // 监听扫描结果
       _scanSubscription = _wifiService.scanStream.listen((scanResult) {
+        print('WiFi 页面: 收到扫描结果 - 网络数量: ${scanResult.networks.length}');
         if (mounted) {
           setState(() {
             _scanResult = scanResult;
             _isScanning = false;
           });
+          print('WiFi 页面: 扫描结果已更新 - 网络数量: ${_scanResult.networks.length}, 显示条件: enabled=${_wifiStatus.enabled}, hasNetworks=${_scanResult.networks.isNotEmpty}');
         }
       });
       
@@ -127,10 +174,14 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
 
   /// 开关 Wi-Fi
   Future<void> _toggleWifi(bool value) async {
+    print('WiFi 页面: 用户点击开关 - 目标状态: $value, 当前状态: ${_wifiStatus.enabled}');
+    
     final error = await _wifiService.enableWiFi(value);
+    print('WiFi 页面: enableWiFi 返回结果: $error');
     
     if (mounted) {
       if (error == WiFiError.ok) {
+        print('WiFi 页面: 操作成功，显示成功消息');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(value ? 'Wi-Fi 已开启' : 'Wi-Fi 已关闭'),
@@ -138,9 +189,11 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
           ),
         );
         if (value) {
+          print('WiFi 页面: Wi-Fi 开启，执行状态和扫描刷新');
           await _loadStatusAndScan();
         }
       } else {
+        print('WiFi 页面: 操作失败 - ${error.message}');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('操作失败: ${error.message}')),
         );

@@ -109,15 +109,33 @@ class WiFiWebSocketService {
       );
 
       final response = await _client!.sendRequest(request);
-      print('WiFi 服务: Wi-Fi ${enable ? '开启' : '关闭'}响应 - success: ${response.success}, error: ${response.error}');
+      print(
+          'WiFi 服务: Wi-Fi ${enable ? '开启' : '关闭'}响应 - success: ${response.success}, error: ${response.error}');
 
       if (response.success) {
-        print('WiFi 服务: Wi-Fi ${enable ? '开启' : '关闭'}成功，刷新状态');
-        // 更新状态
-        await refreshStatus();
+        print('WiFi 服务: Wi-Fi ${enable ? '开启' : '关闭'}成功');
+
+        // 立即更新本地状态，避免被后续状态查询覆盖
+        _currentStatus = _currentStatus.copyWith(enabled: enable);
+        print('WiFi 服务: 立即更新本地状态 - enabled: ${_currentStatus.enabled}');
+        _statusController.add(_currentStatus);
+
+        // 延迟一段时间后再刷新状态，给服务器时间更新
+        Future.delayed(const Duration(milliseconds: 500), () async {
+          print('WiFi 服务: 延迟刷新状态');
+          await refreshStatus();
+
+          // 如果是开启 Wi-Fi，自动扫描网络
+          if (enable && _currentStatus.enabled) {
+            print('WiFi 服务: Wi-Fi 已开启，自动扫描网络');
+            await scanNetworks(rescan: true);
+          }
+        });
+
         return WiFiError.ok;
       } else {
-        print('WiFi 服务: Wi-Fi ${enable ? '开启' : '关闭'}失败 - ${response.wifiError.message}');
+        print(
+            'WiFi 服务: Wi-Fi ${enable ? '开启' : '关闭'}失败 - ${response.wifiError.message}');
         return response.wifiError;
       }
     } catch (e, stackTrace) {
@@ -142,12 +160,14 @@ class WiFiWebSocketService {
       );
 
       final response = await _client!.sendRequest(request);
-      print('WiFi 服务: 收到状态响应 - success: ${response.success}, error: ${response.error}');
+      print(
+          'WiFi 服务: 收到状态响应 - success: ${response.success}, error: ${response.error}');
       print('WiFi 服务: 响应数据: ${response.data}');
 
       if (response.success) {
         _currentStatus = WiFiStatus.fromJson(response.data);
-        print('WiFi 服务: 解析状态 - enabled: ${_currentStatus.enabled}, connected: ${_currentStatus.connected}');
+        print(
+            'WiFi 服务: 解析状态 - enabled: ${_currentStatus.enabled}, connected: ${_currentStatus.connected}');
         _statusController.add(_currentStatus);
         return WiFiError.ok;
       } else {
@@ -176,7 +196,8 @@ class WiFiWebSocketService {
       );
 
       final response = await _client!.sendRequest(request);
-      print('WiFi 服务: 扫描响应 - success: ${response.success}, error: ${response.error}');
+      print(
+          'WiFi 服务: 扫描响应 - success: ${response.success}, error: ${response.error}');
       print('WiFi 服务: 扫描数据: ${response.data}');
 
       if (response.success) {

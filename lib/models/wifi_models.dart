@@ -306,6 +306,33 @@ class WiFiStatus {
     };
   }
 
+  /// 创建状态副本，允许修改部分字段
+  WiFiStatus copyWith({
+    bool? enabled,
+    bool? connected,
+    String? ssid,
+    String? bssid,
+    String? interface,
+    String? ip,
+    int? signal,
+    String? security,
+    int? channel,
+    int? frequencyMhz,
+  }) {
+    return WiFiStatus(
+      enabled: enabled ?? this.enabled,
+      connected: connected ?? this.connected,
+      ssid: ssid ?? this.ssid,
+      bssid: bssid ?? this.bssid,
+      interface: interface ?? this.interface,
+      ip: ip ?? this.ip,
+      signal: signal ?? this.signal,
+      security: security ?? this.security,
+      channel: channel ?? this.channel,
+      frequencyMhz: frequencyMhz ?? this.frequencyMhz,
+    );
+  }
+
   /// 获取连接状态描述
   String get statusDescription {
     if (!enabled) return 'Wi-Fi 已关闭';
