@@ -230,10 +230,11 @@ class WiFiNetwork {
 
   /// 获取信号强度描述
   String get signalStrength {
-    if (signal >= 80) return '优秀';
-    if (signal >= 60) return '良好';
-    if (signal >= 40) return '一般';
-    if (signal >= 20) return '较弱';
+    final percentage = signalPercentage;
+    if (percentage >= 80) return '优秀';
+    if (percentage >= 60) return '良好';
+    if (percentage >= 40) return '一般';
+    if (percentage >= 20) return '较弱';
     return '很弱';
   }
 
@@ -245,8 +246,41 @@ class WiFiNetwork {
   /// 是否为加密网络（别名）
   bool get isSecured => requiresPassword;
 
-  /// 信号强度百分比
-  int get signalPercentage => signal;
+  /// 信号强度百分比 - 将 dBm 值转换为百分比
+  int get signalPercentage {
+    // signal 是 dBm 值（通常为负数，如 -81）
+    // 转换规则：
+    // -30 dBm 或更高 = 100%
+    // -50 dBm = 75%
+    // -60 dBm = 50%
+    // -70 dBm = 25%
+    // -80 dBm 或更低 = 0%
+    
+    if (signal >= -30) return 100;
+    if (signal <= -80) return 0;
+    
+    // 使用线性插值计算中间值
+    if (signal >= -50) {
+      // -30 到 -50 之间：100% 到 75%
+      // 公式：100 - ((-30 - signal) / (-30 - (-50))) * (100 - 75)
+      return (100 - ((-30 - signal) / 20) * 25).round();
+    } else if (signal >= -60) {
+      // -50 到 -60 之间：75% 到 50%
+      // 公式：75 - ((-50 - signal) / (-50 - (-60))) * (75 - 50)
+      return (75 - ((-50 - signal) / 10) * 25).round();
+    } else if (signal >= -70) {
+      // -60 到 -70 之间：50% 到 25%
+      // 公式：50 - ((-60 - signal) / (-60 - (-70))) * (50 - 25)
+      return (50 - ((-60 - signal) / 10) * 25).round();
+    } else {
+      // -70 到 -80 之间：25% 到 0%
+      // 公式：25 - ((-70 - signal) / (-70 - (-80))) * (25 - 0)
+      return (25 - ((-70 - signal) / 10) * 25).round();
+    }
+  }
+
+  /// 获取 dBm 值的字符串表示
+  String get signalDbm => '${signal} dBm';
 }
 
 /// Wi-Fi 状态信息

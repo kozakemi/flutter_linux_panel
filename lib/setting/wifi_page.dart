@@ -17,19 +17,20 @@ class WiFiSettingsPage extends StatefulWidget {
 
 class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
   final WiFiWebSocketService _wifiService = WiFiWebSocketService.instance;
-  
+
   WiFiStatus _wifiStatus = const WiFiStatus(enabled: false, connected: false);
   WiFiScanResult _scanResult = const WiFiScanResult(networks: []);
-  WebSocketConnectionState _connectionState = WebSocketConnectionState.disconnected;
-  
+  WebSocketConnectionState _connectionState =
+      WebSocketConnectionState.disconnected;
+
   bool _isScanning = false;
   bool _isConnecting = false;
-  
+
   StreamSubscription? _statusSubscription;
   StreamSubscription? _scanSubscription;
   StreamSubscription? _connectionEventSubscription;
   StreamSubscription? _connectionStateSubscription;
-  
+
   // 添加定时器变量
   Timer? _statusUpdateTimer;
 
@@ -57,7 +58,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
         timer.cancel();
         return;
       }
-      
+
       print('WiFi 页面: 定时器触发 - 自动更新状态');
       _autoUpdateStatus();
     });
@@ -72,7 +73,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
         print('WiFi 页面: 定时器 - 获取状态失败: ${statusError.message}');
         return;
       }
-      
+
       // 只有在WiFi开启时才扫描网络，避免不必要的请求
       if (_wifiStatus.enabled && !_isScanning) {
         print('WiFi 页面: 定时器 - WiFi已开启，执行网络扫描');
@@ -92,18 +93,20 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
   Future<void> _initializeService() async {
     try {
       await _wifiService.initialize();
-      
+
       // 监听状态变化
       _statusSubscription = _wifiService.statusStream.listen((status) {
-        print('WiFi 页面: 收到状态更新 - enabled: ${status.enabled}, connected: ${status.connected}');
+        print(
+            'WiFi 页面: 收到状态更新 - enabled: ${status.enabled}, connected: ${status.connected}');
         if (mounted) {
           setState(() {
             _wifiStatus = status;
           });
-          print('WiFi 页面: 界面状态已更新 - enabled: ${_wifiStatus.enabled}, connected: ${_wifiStatus.connected}');
+          print(
+              'WiFi 页面: 界面状态已更新 - enabled: ${_wifiStatus.enabled}, connected: ${_wifiStatus.connected}');
         }
       });
-      
+
       // 监听扫描结果
       _scanSubscription = _wifiService.scanStream.listen((scanResult) {
         print('WiFi 页面: 收到扫描结果 - 网络数量: ${scanResult.networks.length}');
@@ -112,31 +115,33 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
             _scanResult = scanResult;
             _isScanning = false;
           });
-          print('WiFi 页面: 扫描结果已更新 - 网络数量: ${_scanResult.networks.length}, 显示条件: enabled=${_wifiStatus.enabled}, hasNetworks=${_scanResult.networks.isNotEmpty}');
+          print(
+              'WiFi 页面: 扫描结果已更新 - 网络数量: ${_scanResult.networks.length}, 显示条件: enabled=${_wifiStatus.enabled}, hasNetworks=${_scanResult.networks.isNotEmpty}');
         }
       });
-      
+
       // 监听连接事件
-      _connectionEventSubscription = _wifiService.connectionEventStream.listen((message) {
+      _connectionEventSubscription =
+          _wifiService.connectionEventStream.listen((message) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(message)),
           );
         }
       });
-      
+
       // 监听 WebSocket 连接状态
-      _connectionStateSubscription = _wifiService.connectionStateStream.listen((state) {
+      _connectionStateSubscription =
+          _wifiService.connectionStateStream.listen((state) {
         if (mounted) {
           setState(() {
             _connectionState = state;
           });
         }
       });
-      
+
       // 初始扫描
       await _loadStatusAndScan();
-      
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -151,7 +156,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
     setState(() {
       _isScanning = true;
     });
-    
+
     // 刷新状态
     final statusError = await _wifiService.refreshStatus();
     if (statusError != WiFiError.ok && mounted) {
@@ -159,7 +164,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
         SnackBar(content: Text('获取状态失败: ${statusError.message}')),
       );
     }
-    
+
     // 扫描网络
     final scanError = await _wifiService.scanNetworks();
     if (scanError != WiFiError.ok && mounted) {
@@ -175,10 +180,10 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
   /// 开关 Wi-Fi
   Future<void> _toggleWifi(bool value) async {
     print('WiFi 页面: 用户点击开关 - 目标状态: $value, 当前状态: ${_wifiStatus.enabled}');
-    
+
     final error = await _wifiService.enableWiFi(value);
     print('WiFi 页面: enableWiFi 返回结果: $error');
-    
+
     if (mounted) {
       if (error == WiFiError.ok) {
         print('WiFi 页面: 操作成功，显示成功消息');
@@ -213,7 +218,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
 
     // 检查网络是否需要密码
     final requiresPassword = _wifiService.networkRequiresPassword(ssid);
-    
+
     if (!requiresPassword) {
       // 直接连接无密码网络
       await _connectToNetwork(ssid, '');
@@ -243,7 +248,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                     .showSnackBar(const SnackBar(content: Text('请输入密码')));
                 return;
               }
-              
+
               setModalState(() {
                 connecting = true;
               });
@@ -265,8 +270,8 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                 setModalState(() {
                   connecting = false;
                 });
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(SnackBar(content: Text('连接失败: ${error.message}')));
+                ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('连接失败: ${error.message}')));
               }
             }
 
@@ -432,6 +437,32 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
     }
   }
 
+  /// 连接到已保存的网络（无需密码）
+  Future<void> _connectToSavedNetwork(String ssid) async {
+    setState(() {
+      _isConnecting = true;
+    });
+
+    final error = await _wifiService.connectToNetwork(
+      ssid: ssid,
+      password: '', // 已保存的网络使用空密码
+    );
+
+    setState(() {
+      _isConnecting = false;
+    });
+
+    if (error == WiFiError.ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已连接到 $ssid')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('连接失败: ${error.message}')),
+      );
+    }
+  }
+
   /// 断开当前网络连接
   Future<void> _disconnectFromNetwork() async {
     if (!_wifiStatus.connected) return;
@@ -473,7 +504,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
 
   Widget _section(List<Widget> tiles) {
     if (tiles.isEmpty) return const SizedBox.shrink();
-    
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Material(
@@ -613,16 +644,55 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                 leading: const Icon(Icons.check, color: Colors.blue),
                 title: Text(_wifiStatus.currentNetwork!.ssid),
                 subtitle: const Text('已连接'),
-                trailing: const Wrap(
+                trailing: Wrap(
                   spacing: 12,
                   children: [
-                    Icon(Icons.lock_outline, size: 20, color: Colors.black54),
-                    Icon(Icons.info_outline, size: 20, color: Colors.black54),
+                    const Icon(Icons.lock_outline,
+                        size: 20, color: Colors.black54),
+                    GestureDetector(
+                      onTap: () =>
+                          _showNetworkDetails(_wifiStatus.currentNetwork!),
+                      child: const Icon(Icons.info_outline,
+                          size: 20, color: Colors.black54),
+                    ),
                   ],
                 ),
                 onTap: () {},
               ),
             ]),
+            const SizedBox(height: 24),
+          ],
+
+          // 我的网络（已保存的网络）
+          if (_wifiStatus.enabled &&
+              _scanResult.networks.where((n) => n.recorded).isNotEmpty) ...[
+            _sectionHeader('我的网络'),
+            _section(
+              _scanResult.networks
+                  .where((network) => network.recorded)
+                  .map(
+                    (network) => ListTile(
+                      // leading: const Icon(Icons.bookmark, color: Colors.green),
+                      title: Text(network.ssid),
+                      subtitle: Text('信号强度: ${network.signalPercentage}%'),
+                      trailing: Wrap(
+                        spacing: 12,
+                        children: [
+                          if (network.isSecured)
+                            const Icon(Icons.lock_outline,
+                                size: 20, color: Colors.black54),
+                          GestureDetector(
+                            onTap: () => _showNetworkDetails(network),
+                            child: const Icon(Icons.info_outline,
+                                size: 20, color: Colors.black54),
+                          ),
+                        ],
+                      ),
+                      onTap: () => _connectToSavedNetwork(network.ssid),
+                    ),
+                  )
+                  .toList(),
+            ),
             const SizedBox(height: 24),
           ],
 
@@ -636,6 +706,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
             else
               _section(
                 _scanResult.networks
+                    .where((network) => !network.recorded) // 排除已保存的网络
                     .map(
                       (network) => ListTile(
                         title: Text(network.ssid),
@@ -646,8 +717,11 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                             if (network.isSecured)
                               const Icon(Icons.lock_outline,
                                   size: 20, color: Colors.black54),
-                            const Icon(Icons.info_outline,
-                                size: 20, color: Colors.black54),
+                            GestureDetector(
+                              onTap: () => _showNetworkDetails(network),
+                              child: const Icon(Icons.info_outline,
+                                  size: 20, color: Colors.black54),
+                            ),
                           ],
                         ),
                         onTap: () => _connectFlow(network.ssid),
@@ -658,6 +732,108 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
           ],
         ],
       ),
+    );
+  }
+
+  /// 显示 Wi-Fi 网络详细信息对话框
+  void _showNetworkDetails(WiFiNetwork network) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.wifi, color: Colors.blue),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  network.ssid,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildDetailRow('网络名称 (SSID)', network.ssid),
+                const SizedBox(height: 12),
+                _buildDetailRow('MAC 地址 (BSSID)',
+                    network.bssid.isNotEmpty ? network.bssid : '未知'),
+                const SizedBox(height: 12),
+                _buildDetailRow('信号强度',
+                    '${network.signalDbm} (${network.signalPercentage}%)'),
+                const SizedBox(height: 12),
+                _buildDetailRow('信号质量', network.signalStrength),
+                const SizedBox(height: 12),
+                _buildDetailRow('安全类型',
+                    network.security.isNotEmpty ? network.security : 'Open'),
+                const SizedBox(height: 12),
+                _buildDetailRow('频道',
+                    network.channel > 0 ? network.channel.toString() : '未知'),
+                const SizedBox(height: 12),
+                _buildDetailRow(
+                    '频率',
+                    network.frequencyMhz > 0
+                        ? '${network.frequencyMhz} MHz'
+                        : '未知'),
+                const SizedBox(height: 12),
+                _buildDetailRow('已保存', network.recorded ? '是' : '否'),
+                const SizedBox(height: 12),
+                _buildDetailRow('需要密码', network.requiresPassword ? '是' : '否'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('关闭'),
+            ),
+            if (!network.recorded)
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _connectFlow(network.ssid);
+                },
+                child: const Text('连接'),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 构建详细信息行
+  Widget _buildDetailRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 80,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
