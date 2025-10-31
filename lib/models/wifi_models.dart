@@ -240,7 +240,17 @@ class WiFiNetwork {
 
   /// 是否需要密码
   bool get requiresPassword {
-    return security != 'Open' && security.isNotEmpty;
+    if (security.isEmpty) return false;
+    
+    // 开放网络：只包含 [ESS] 和/或 [UTF-8] 的网络不需要密码
+    final openNetworkPattern = RegExp(r'^\[ESS\](\[UTF-8\])?$|^\[ESS\]\[UTF-8\]$');
+    if (openNetworkPattern.hasMatch(security)) {
+      return false;
+    }
+    
+    // 加密网络：包含 WPA、WPA2、PSK、WEP 等关键字的网络需要密码
+    final encryptionKeywords = ['WPA', 'WPA2', 'PSK', 'WEP', 'TKIP', 'CCMP'];
+    return encryptionKeywords.any((keyword) => security.contains(keyword));
   }
 
   /// 是否为加密网络（别名）

@@ -7,6 +7,7 @@ import 'calendar_page.dart';
 import 'cloud_page.dart';
 import 'loading_page.dart';
 import 'global_tap_ripple.dart';
+import 'services/display_service.dart';
 
 // 全局配置变量
 const bool showSeconds = true; // 控制是否显示秒
@@ -14,7 +15,12 @@ const bool showSeconds = true; // 控制是否显示秒
 // 使用相对比例而不是固定尺寸
 const double sidePanelWidthRatio = 0.2; // 侧边栏宽度占屏幕宽度的比例
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // 初始化显示服务
+  await DisplayService.instance.initialize();
+  
   // debugRepaintRainbowEnabled = true;
   runApp(const MyApp());
 }
@@ -24,20 +30,33 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Anime Clock',
-      // debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-        fontFamily: 'HarmonyOS Sans SC', // 应用中文字体
-      ),
-      builder: (context, child) =>
-          GlobalTapRipple(child: child ?? const SizedBox.shrink()),
-      routes: {
-        '/settings': (context) => const SettingsPage(),
+    return ListenableBuilder(
+      listenable: DisplayService.instance,
+      builder: (context, child) {
+        return MaterialApp(
+          title: 'Anime Clock',
+          // debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+            useMaterial3: true,
+            fontFamily: 'HarmonyOS Sans SC', // 应用中文字体
+          ),
+          builder: (context, child) {
+            // 应用全局缩放 - 只使用textScaleFactor，避免Transform.scale造成的放大镜效果
+            final scaleFactor = DisplayService.instance.scaleFactor;
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaleFactor: scaleFactor,
+              ),
+              child: GlobalTapRipple(child: child ?? const SizedBox.shrink()),
+            );
+          },
+          routes: {
+            '/settings': (context) => const SettingsPage(),
+          },
+          home: const ClockScreen(),
+        );
       },
-      home: const ClockScreen(),
     );
   }
 }

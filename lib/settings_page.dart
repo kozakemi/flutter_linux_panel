@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'setting/wifi_page.dart';
+import 'setting/display_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -105,7 +106,9 @@ class _SettingsPageState extends State<SettingsPage> {
               leading: _icon('source/app_ico/DisplayBrightness.svg'),
               title: const Text('显示设置'),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () => _showNotImplemented('显示设置'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DisplaySettingsPage()),
+              ),
             ),
             ListTile(
               leading: _icon('source/app_ico/SoundsHaptics.svg'),

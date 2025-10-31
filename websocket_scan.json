@@ -1,0 +1,244 @@
+{
+    "type": "wifi_scan_response",
+    "request_id": "111",
+    "success": true,
+    "error": 0,
+    "data": {
+        "networks": [
+            {
+                "ssid": "iPhone",
+                "bssid": "f6:1b:b8:f1:9d:42",
+                "signal": -41,
+                "security": "[WPA2-PSK-CCMP][ESS]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": true
+            },
+            {
+                "ssid": "Xiaomi_B5CD",
+                "bssid": "d4:35:38:ff:b5:ce",
+                "signal": -48,
+                "security": "[WPA-PSK-CCMP+TKIP][WPA2-PSK-CCMP+TKIP][WPS][ESS]",
+                "channel": 4,
+                "frequency_mhz": 2427,
+                "recorded": false
+            },
+            {
+                "ssid": "UFI-53AE",
+                "bssid": "3c:68:01:31:53:ae",
+                "signal": -63,
+                "security": "[WPA2-PSK-CCMP][WPS][ESS]",
+                "channel": 11,
+                "frequency_mhz": 2462,
+                "recorded": false
+            },
+            {
+                "ssid": "214-1",
+                "bssid": "3c:cd:57:6f:49:2a",
+                "signal": -68,
+                "security": "[WPA-PSK-CCMP+TKIP][WPA2-PSK-CCMP+TKIP][WPS][ESS]",
+                "channel": 11,
+                "frequency_mhz": 2462,
+                "recorded": false
+            },
+            {
+                "ssid": "CMCC-AUTO",
+                "bssid": "a6:ef:15:f6:66:fe",
+                "signal": -71,
+                "security": "[WPA2-PSK-CCMP][ESS]",
+                "channel": 11,
+                "frequency_mhz": 2462,
+                "recorded": false
+            },
+            {
+                "ssid": "seventeen",
+                "bssid": "de:d6:6c:64:b2:e2",
+                "signal": -73,
+                "security": "[WPA2-PSK-CCMP][ESS]",
+                "channel": 11,
+                "frequency_mhz": 2462,
+                "recorded": false
+            },
+            {
+                "ssid": "dh",
+                "bssid": "26:3c:d8:9c:5a:9b",
+                "signal": -73,
+                "security": "[WPA2-PSK-CCMP][ESS]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": false
+            },
+            {
+                "ssid": "\\x00",
+                "bssid": "52:5f:08:a5:7d:6a",
+                "signal": -77,
+                "security": "[WPA-PSK-CCMP][WPA2-PSK-CCMP][ESS]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": false
+            },
+            {
+                "ssid": "会议001",
+                "bssid": "48:12:8f:b2:9d:c5",
+                "signal": -78,
+                "security": "[WPA-PSK-CCMP][WPA2-PSK-CCMP][ESS][UTF-8]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": false
+            },
+            {
+                "ssid": "RedmiPhone",
+                "bssid": "62:18:3a:ef:1a:0b",
+                "signal": -16,
+                "security": "[ESS]",
+                "channel": 11,
+                "frequency_mhz": 2462,
+                "recorded": false
+            },
+            {
+                "ssid": "办公002",
+                "bssid": "48:12:8f:b2:cc:e0",
+                "signal": -65,
+                "security": "[ESS][UTF-8]",
+                "channel": 11,
+                "frequency_mhz": 2462,
+                "recorded": false
+            },
+            {
+                "ssid": "办公002",
+                "bssid": "48:12:8f:b2:9d:c0",
+                "signal": -77,
+                "security": "[ESS][UTF-8]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": false
+            },
+            {
+                "ssid": "办公004",
+                "bssid": "48:12:8f:b2:9d:c1",
+                "signal": -78,
+                "security": "[ESS][UTF-8]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": false
+            },
+            {
+                "ssid": "办公005",
+                "bssid": "48:12:8f:b2:9d:c6",
+                "signal": -78,
+                "security": "[ESS][UTF-8]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": false
+            },
+            {
+                "ssid": "办公006",
+                "bssid": "48:12:8f:b2:9d:c4",
+                "signal": -78,
+                "security": "[ESS][UTF-8]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": false
+            },
+            {
+                "ssid": "办公008",
+                "bssid": "48:12:8f:b2:9d:c2",
+                "signal": -79,
+                "security": "[ESS][UTF-8]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": false
+            },
+            {
+                "ssid": "办公003",
+                "bssid": "48:12:8f:b2:9d:c8",
+                "signal": -79,
+                "security": "[ESS][UTF-8]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": false
+            },
+            {
+                "ssid": "办公008",
+                "bssid": "48:12:8f:b2:c3:02",
+                "signal": -80,
+                "security": "[ESS][UTF-8]",
+                "channel": 1,
+                "frequency_mhz": 2412,
+                "recorded": false
+            },
+            {
+                "ssid": "访客001",
+                "bssid": "48:12:8f:b2:9d:c3",
+                "signal": -80,
+                "security": "[ESS][UTF-8]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": false
+            },
+            {
+                "ssid": "办公004",
+                "bssid": "48:12:8f:b2:c3:01",
+                "signal": -81,
+                "security": "[ESS][UTF-8]",
+                "channel": 1,
+                "frequency_mhz": 2412,
+                "recorded": false
+            },
+            {
+                "ssid": "办公003",
+                "bssid": "48:12:8f:b2:6c:68",
+                "signal": -85,
+                "security": "[ESS][UTF-8]",
+                "channel": 1,
+                "frequency_mhz": 2412,
+                "recorded": false
+            },
+            {
+                "ssid": "办公004",
+                "bssid": "48:12:8f:b2:6c:61",
+                "signal": -87,
+                "security": "[ESS][UTF-8]",
+                "channel": 1,
+                "frequency_mhz": 2412,
+                "recorded": false
+            },
+            {
+                "ssid": "办公002",
+                "bssid": "48:12:8f:b2:6c:60",
+                "signal": -88,
+                "security": "[ESS][UTF-8]",
+                "channel": 1,
+                "frequency_mhz": 2412,
+                "recorded": false
+            },
+            {
+                "ssid": "办公003",
+                "bssid": "48:12:8f:b2:d8:c8",
+                "signal": -88,
+                "security": "[ESS][UTF-8]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": false
+            },
+            {
+                "ssid": "办公005",
+                "bssid": "48:12:8f:b2:d8:c6",
+                "signal": -89,
+                "security": "[ESS][UTF-8]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": false
+            },
+            {
+                "ssid": "设备001",
+                "bssid": "48:12:8f:b2:d8:cc",
+                "signal": -89,
+                "security": "[ESS][UTF-8]",
+                "channel": 6,
+                "frequency_mhz": 2437,
+                "recorded": false
+            }
+        ]
+    }
+}
