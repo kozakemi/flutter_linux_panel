@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:virtual_keyboard_multi_language/virtual_keyboard_multi_language.dart';
 
@@ -658,6 +659,10 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                   ],
                 ),
                 onTap: () {},
+                onLongPress: () {
+                  HapticFeedback.lightImpact();
+                  _showNetworkDetails(_wifiStatus.currentNetwork!);
+                },
               ),
             ]),
             const SizedBox(height: 24),
@@ -665,11 +670,11 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
 
           // 我的网络（已保存的网络）
           if (_wifiStatus.enabled &&
-              _scanResult.networks.where((n) => n.recorded).isNotEmpty) ...[
+              _scanResult.networks.where((n) => n.recorded && n.ssid.isNotEmpty && n.ssid != r'\x00').isNotEmpty) ...[
             _sectionHeader('我的网络'),
             _section(
               _scanResult.networks
-                  .where((network) => network.recorded)
+                  .where((network) => network.recorded && network.ssid.isNotEmpty && network.ssid != r'\x00')
                   .map(
                     (network) => ListTile(
                       // leading: const Icon(Icons.bookmark, color: Colors.green),
@@ -689,6 +694,10 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                         ],
                       ),
                       onTap: () => _connectToSavedNetwork(network.ssid),
+                      onLongPress: () {
+                        HapticFeedback.lightImpact();
+                        _showNetworkDetails(network);
+                      },
                     ),
                   )
                   .toList(),
@@ -706,7 +715,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
             else
               _section(
                 _scanResult.networks
-                    .where((network) => !network.recorded) // 排除已保存的网络
+                    .where((network) => !network.recorded && network.ssid.isNotEmpty && network.ssid != r'\x00') // 排除已保存的网络和隐藏网络
                     .map(
                       (network) => ListTile(
                         title: Text(network.ssid),
@@ -725,6 +734,10 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                           ],
                         ),
                         onTap: () => _connectFlow(network.ssid),
+                        onLongPress: () {
+                          HapticFeedback.lightImpact();
+                          _showNetworkDetails(network);
+                        },
                       ),
                     )
                     .toList(),
@@ -785,6 +798,11 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                 _buildDetailRow('已保存', network.recorded ? '是' : '否'),
                 const SizedBox(height: 12),
                 _buildDetailRow('需要密码', network.requiresPassword ? '是' : '否'),
+                // 如果是已连接的网络且有IP信息，显示IP地址
+                if (_wifiStatus.connected && _wifiStatus.ssid == network.ssid && _wifiStatus.ip != null) ...[
+                  const SizedBox(height: 12),
+                  _buildDetailRow('IP 地址', _wifiStatus.ip!),
+                ],
               ],
             ),
           ),

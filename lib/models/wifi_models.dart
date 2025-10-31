@@ -255,10 +255,10 @@ class WiFiNetwork {
     // -60 dBm = 50%
     // -70 dBm = 25%
     // -80 dBm 或更低 = 0%
-    
+
     if (signal >= -30) return 100;
     if (signal <= -80) return 0;
-    
+
     // 使用线性插值计算中间值
     if (signal >= -50) {
       // -30 到 -50 之间：100% 到 75%
@@ -377,7 +377,7 @@ class WiFiStatus {
   /// 当前连接的网络信息
   WiFiNetwork? get currentNetwork {
     if (!connected || ssid == null) return null;
-    
+
     return WiFiNetwork(
       ssid: ssid!,
       bssid: bssid ?? '',
@@ -403,7 +403,7 @@ class WiFiScanResult {
     final networks = networksJson
         .map((e) => WiFiNetwork.fromJson(e as Map<String, dynamic>))
         .toList();
-    
+
     return WiFiScanResult(networks: networks);
   }
 

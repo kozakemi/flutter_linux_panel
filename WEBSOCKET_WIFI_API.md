@@ -8,7 +8,7 @@
 
 - 统一消息结构：所有请求/响应/事件均以相同的 JSON 外层结构进行封装。
 - 类型约定：`type` 为蛇形命名，区分 `*_request`、`*_response`、`*_event`。
-- 关联标识：使用 `request_id` 关联请求与响应（可选但推荐）。
+- 关联标识：所有请求与响应必须携带字符串 `request_id`；事件不携带。
 - 可扩展：`data` 字段仅承载业务数据；新增字段不破坏旧客户端。
 
 ## 通用消息结构
@@ -18,7 +18,7 @@
 ```json
 {
   "type": "<operation>_request",
-  "request_id": "<string-or-int-optional>",
+  "request_id": "<string>",
   "data": { /* operation payload */ }
 }
 ```
@@ -28,7 +28,7 @@
 ```json
 {
   "type": "<operation>_response",
-  "request_id": "<echo-request-id>",
+  "request_id": "<same-string-request-id>",
   "success": true,
   "error": 0,
   "message": "optional human-readable message",
@@ -48,7 +48,7 @@
 说明：
 - `success` 为布尔；成功时 `error` 应为 `0`；失败时为非零（见错误码枚举）。
 - `message` 可选，用于人类可读错误或状态描述。
-- `request_id` 推荐在请求与响应中传递，便于前端路由。
+- `request_id` 必须在请求与响应中传递且类型为字符串，不接受数字；响应必须原样回显与请求一致的 `request_id`（包括失败场景）。事件不携带 `request_id`。
 
 ## 操作列表与数据结构
 
@@ -57,12 +57,13 @@
 ### 1) Ping（可选
 - 请求：`ping_request`
 ```json
-{ "type": "ping_request", "data": {} }
+{ "type": "ping_request", "request_id": "req-1", "data": {} }
 ```
 - 响应：`ping_response`
 ```json
 {
   "type": "ping_response",
+  "request_id": "req-1",
   "success": true,
   "error": 0,
   "data": { "uptime_ms": 1234567 }
@@ -72,12 +73,13 @@
 ### 2) 开关 Wi‑Fi
 - 请求：`wifi_enable_request`
 ```json
-{ "type": "wifi_enable_request", "data": { "enable": true } }
+{ "type": "wifi_enable_request", "request_id": "req-2", "data": { "enable": true } }
 ```
 - 响应：`wifi_enable_response`
 ```json
 {
   "type": "wifi_enable_response",
+  "request_id": "req-2",
   "success": true,
   "error": 0,
   "data": { "enabled": true }
@@ -87,12 +89,13 @@
 ### 3) 获取状态
 - 请求：`wifi_status_request`
 ```json
-{ "type": "wifi_status_request", "data": {} }
+{ "type": "wifi_status_request", "request_id": "req-3", "data": {} }
 ```
 - 响应：`wifi_status_response`
 ```json
 {
   "type": "wifi_status_response",
+  "request_id": "req-3",
   "success": true,
   "error": 0,
   "data": {
@@ -113,12 +116,13 @@
 ### 4) 扫描网络
 - 请求：`wifi_scan_request`
 ```json
-{ "type": "wifi_scan_request", "data": { "rescan": true } }
+{ "type": "wifi_scan_request", "request_id": "req-4", "data": { "rescan": true } }
 ```
 - 响应：`wifi_scan_response`
 ```json
 {
   "type": "wifi_scan_response",
+  "request_id": "req-4",
   "success": true,
   "error": 0,
   "data": {
@@ -151,6 +155,7 @@
 ```json
 {
   "type": "wifi_connect_request",
+  "request_id": "req-5",
   "data": {
     "ssid": "MyHomeNetwork",
     "password": "mysecretpassword",
@@ -163,6 +168,7 @@
 ```json
 {
   "type": "wifi_connect_request",
+  "request_id": "req-6",
   "data": {
     "ssid": "MyHomeNetwork",
     "password": "",
@@ -174,6 +180,7 @@
 ```json
 {
   "type": "wifi_connect_response",
+  "request_id": "req-5",
   "success": true,
   "error": 0,
   "data": {
@@ -184,6 +191,7 @@
 ```json
 {
   "type": "wifi_connect_response",
+  "request_id": "req-6",
   "success": false,
   "error": 1,
   "data": {  }
@@ -193,12 +201,13 @@
 ### 6) 断开连接
 - 请求：`wifi_disconnect_request`
 ```json
-{ "type": "wifi_disconnect_request", "data": { "ssid": "MyHomeNetwork" } }
+{ "type": "wifi_disconnect_request", "request_id": "req-7", "data": { "ssid": "MyHomeNetwork" } }
 ```
 - 响应：`wifi_disconnect_response`
 ```json
 {
   "type": "wifi_disconnect_response",
+  "request_id": "req-7",
   "success": true,
   "error": 0,
   "data": { }
@@ -210,6 +219,7 @@
 ```json
 {
   "type": "wifi_profiles_response",
+  "request_id": "req-8",
   "success": true,
   "error": 0,
   "data": {
@@ -222,11 +232,11 @@
 ```
 - 保存配置：`wifi_profile_save_request` → `wifi_profile_save_response`
 ```json
-{ "type": "wifi_profile_save_request", "data": { "ssid": "MyHomeNetwork", "password": "mysecretpassword", "autoconnect": true } }
+{ "type": "wifi_profile_save_request", "request_id": "req-9", "data": { "ssid": "MyHomeNetwork", "password": "mysecretpassword", "autoconnect": true } }
 ```
 - 删除配置：`wifi_profile_delete_request` → `wifi_profile_delete_response`
 ```json
-{ "type": "wifi_profile_delete_request", "data": { "ssid": "MyHomeNetwork" } }
+{ "type": "wifi_profile_delete_request", "request_id": "req-10", "data": { "ssid": "MyHomeNetwork" } }
 ```
 
 ## 事件推送（可选）
@@ -280,6 +290,7 @@ typedef enum {
 ```json
 {
   "type": "wifi_connect_request",
+  "request_id": "req-11",
   "data": {
     "ssid": "MyHomeNetwork",
     "password": "mysecretpassword"
@@ -291,6 +302,7 @@ typedef enum {
 ```json
 {
   "type": "wifi_connect_response",
+  "request_id": "req-11",
   "data": {
     "success": true,
     "error": 0
@@ -302,6 +314,7 @@ typedef enum {
 ```json
 {
   "type": "wifi_connect_response",
+  "request_id": "req-11",
   "data": {
     "success": false,
     "error": -1

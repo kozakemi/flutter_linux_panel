@@ -22,20 +22,20 @@ class WebSocketClient {
   WebSocketConnectionState _state = WebSocketConnectionState.disconnected;
   Timer? _reconnectTimer;
   Timer? _heartbeatTimer;
-  
+
   final String _url;
   final Duration _reconnectInterval;
   final Duration _heartbeatInterval;
   final Duration _requestTimeout;
-  
+
   // 流控制器
-  final StreamController<WebSocketConnectionState> _stateController = 
+  final StreamController<WebSocketConnectionState> _stateController =
       StreamController<WebSocketConnectionState>.broadcast();
-  final StreamController<WebSocketResponse> _responseController = 
+  final StreamController<WebSocketResponse> _responseController =
       StreamController<WebSocketResponse>.broadcast();
-  final StreamController<WebSocketEvent> _eventController = 
+  final StreamController<WebSocketEvent> _eventController =
       StreamController<WebSocketEvent>.broadcast();
-  
+
   // 待处理的请求
   final Map<String, Completer<WebSocketResponse>> _pendingRequests = {};
   int _requestIdCounter = 0;
@@ -45,10 +45,10 @@ class WebSocketClient {
     Duration reconnectInterval = const Duration(seconds: 5),
     Duration heartbeatInterval = const Duration(seconds: 30),
     Duration requestTimeout = const Duration(seconds: 10),
-  }) : _url = url,
-       _reconnectInterval = reconnectInterval,
-       _heartbeatInterval = heartbeatInterval,
-       _requestTimeout = requestTimeout;
+  })  : _url = url,
+        _reconnectInterval = reconnectInterval,
+        _heartbeatInterval = heartbeatInterval,
+        _requestTimeout = requestTimeout;
 
   /// 连接状态流
   Stream<WebSocketConnectionState> get stateStream => _stateController.stream;
@@ -67,7 +67,7 @@ class WebSocketClient {
 
   /// 连接到 WebSocket 服务器
   Future<void> connect() async {
-    if (_state == WebSocketConnectionState.connecting || 
+    if (_state == WebSocketConnectionState.connecting ||
         _state == WebSocketConnectionState.connected) {
       return;
     }
@@ -76,7 +76,7 @@ class WebSocketClient {
 
     try {
       _channel = WebSocketChannel.connect(Uri.parse(_url));
-      
+
       // 监听消息
       _channel!.stream.listen(
         _onMessage,
@@ -86,7 +86,6 @@ class WebSocketClient {
 
       _setState(WebSocketConnectionState.connected);
       _startHeartbeat();
-      
     } catch (e) {
       _setState(WebSocketConnectionState.error);
       _scheduleReconnect();
@@ -97,7 +96,7 @@ class WebSocketClient {
   Future<void> disconnect() async {
     _reconnectTimer?.cancel();
     _heartbeatTimer?.cancel();
-    
+
     // 取消所有待处理的请求
     for (final completer in _pendingRequests.values) {
       completer.completeError(const SocketException('Connection closed'));
@@ -134,7 +133,8 @@ class WebSocketClient {
     Timer(_requestTimeout, () {
       if (_pendingRequests.containsKey(requestId)) {
         _pendingRequests.remove(requestId);
-        completer.completeError(TimeoutException('Request timeout', _requestTimeout));
+        completer.completeError(
+            TimeoutException('Request timeout', _requestTimeout));
       }
     });
 
@@ -142,7 +142,7 @@ class WebSocketClient {
       // 发送请求
       final message = jsonEncode(requestWithId.toJson());
       _channel!.sink.add(message);
-      
+
       return await completer.future;
     } catch (e) {
       _pendingRequests.remove(requestId);
@@ -170,7 +170,8 @@ class WebSocketClient {
       if (type.endsWith('_response')) {
         // 处理响应
         final response = WebSocketResponse.fromJson(json);
-        print('处理响应: ${response.type}, success: ${response.success}, error: ${response.error}');
+        print(
+            '处理响应: ${response.type}, success: ${response.success}, error: ${response.error}');
         _handleResponse(response);
       } else if (type.endsWith('_event')) {
         // 处理事件
@@ -189,59 +190,22 @@ class WebSocketClient {
 
   /// 处理响应消息
   void _handleResponse(WebSocketResponse response) {
+    // 严格检查 request_id 字段
+    if (response.requestId == null || response.requestId!.isEmpty) {
+      print('舍弃响应: 缺少 request_id 字段 - ${response.type}');
+      return;
+    }
+
     _responseController.add(response);
 
-    // 如果有对应的请求在等待，完成它
-    if (response.requestId != null) {
-      final completer = _pendingRequests.remove(response.requestId!);
-      if (completer != null) {
-        completer.complete(response);
-        print('通过 request_id 完成请求: ${response.requestId}');
-      }
+    // 根据 request_id 匹配待处理的请求
+    final completer = _pendingRequests.remove(response.requestId!);
+    if (completer != null) {
+      completer.complete(response);
+      print('通过 request_id 完成请求: ${response.requestId}');
     } else {
-      // 如果响应没有 request_id，尝试根据类型匹配最近的请求
-      // 这是为了兼容不返回 request_id 的服务器
-      final responseType = response.type;
-      print('处理无 request_id 的响应: $responseType');
-      
-      if (responseType.endsWith('_response')) {
-        // 根据响应类型查找对应的请求类型
-        final requestType = responseType.replaceAll('_response', '_request');
-        print('查找匹配的请求类型: $requestType');
-        
-        // 查找最早的匹配请求（FIFO 顺序）
-        String? matchingRequestId;
-        int? earliestTimestamp;
-        
-        for (final requestId in _pendingRequests.keys) {
-          // 从 request_id 中提取时间戳和类型信息
-          // request_id 格式: req_<counter>_<timestamp>
-          final parts = requestId.split('_');
-          if (parts.length >= 3) {
-            try {
-              final timestamp = int.parse(parts[2]);
-              // 这里可以根据需要添加更精确的类型匹配
-              // 目前使用时间戳最早的请求
-              if (earliestTimestamp == null || timestamp < earliestTimestamp) {
-                earliestTimestamp = timestamp;
-                matchingRequestId = requestId;
-              }
-            } catch (e) {
-              // 忽略解析错误，继续处理下一个
-            }
-          }
-        }
-        
-        if (matchingRequestId != null) {
-          final completer = _pendingRequests.remove(matchingRequestId);
-          if (completer != null) {
-            completer.complete(response);
-            print('通过类型匹配完成请求: $matchingRequestId -> $responseType');
-          }
-        } else {
-          print('未找到匹配的待处理请求，当前待处理请求: ${_pendingRequests.keys.toList()}');
-        }
-      }
+      print(
+          '未找到匹配的待处理请求: ${response.requestId}, 当前待处理请求: ${_pendingRequests.keys.toList()}');
     }
   }
 

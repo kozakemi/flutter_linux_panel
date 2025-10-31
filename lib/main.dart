@@ -531,7 +531,7 @@ class SideTabBar extends StatelessWidget {
               quarterTurns: 3,
               child: Tab(
                 icon: SvgPicture.asset(
-                  'source/ico/Cloud_On.svg',
+                  'source/ico/modular.svg',
                   width: screenWidth * 0.08,
                   height: screenWidth * 0.08,
                   colorFilter:

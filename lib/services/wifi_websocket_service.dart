@@ -49,7 +49,8 @@ class WiFiWebSocketService {
       _client?.stateStream ?? const Stream.empty();
 
   /// 初始化服务
-  Future<void> initialize({String url = 'ws://localhost:8080'}) async {
+  //Future<void> initialize({String url = 'ws://localhost:8080'}) async {
+  Future<void> initialize({String url = 'ws://172.20.10.2:8080'}) async {
     if (_client != null) {
       await _client!.disconnect();
     }
