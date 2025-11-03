@@ -35,7 +35,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
   @override
   void initState() {
     super.initState();
-    _initializeService();
+    _setupModule();
     _startStatusUpdateTimer();
   }
 
@@ -81,17 +81,14 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
     }
   }
 
-  /// 初始化 WebSocket 服务
-  Future<void> _initializeService() async {
+  /// 绑定已在主入口初始化的 WebSocket 服务与模块
+  Future<void> _setupModule() async {
     try {
-      // 初始化服务管理器
-      await WebSocketServiceManager.instance.initialize();
-      
-      // 获取WiFi模块
+      // 直接获取在 main 中初始化完成的 WiFi 模块
       _wifiModule = WebSocketServiceManager.instance.wifiModule;
       
       if (_wifiModule == null) {
-        throw Exception('WiFi模块初始化失败');
+        throw Exception('WiFi模块未可用，请检查主入口初始化');
       }
 
       // 监听状态变化

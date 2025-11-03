@@ -8,6 +8,9 @@ import 'cloud_page.dart';
 import 'loading_page.dart';
 import 'global_tap_ripple.dart';
 import 'services/display_service.dart';
+import 'services/websocket_service_manager.dart';
+import 'services/wifi_module.dart';
+import 'models/wifi_models.dart';
 
 // 全局配置变量
 const bool showSeconds = true; // 控制是否显示秒
@@ -17,10 +20,17 @@ const double sidePanelWidthRatio = 0.2; // 侧边栏宽度占屏幕宽度的比�
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // 初始化显示服务
   await DisplayService.instance.initialize();
-  
+
+  // 初始化 WebSocket 服务（在应用启动阶段）
+  try {
+    await WebSocketServiceManager.instance.initialize();
+  } catch (_) {
+    // 允许离线模式继续运行
+  }
+
   // debugRepaintRainbowEnabled = true;
   runApp(const MyApp());
 }
@@ -79,6 +89,7 @@ class _ClockScreenState extends State<ClockScreen>
 
   late Timer _timeTimer;
   late Timer _statusTimer;
+  StreamSubscription<WiFiStatus>? _wifiStatusSubscription;
 
   @override
   void initState() {
@@ -99,18 +110,25 @@ class _ClockScreenState extends State<ClockScreen>
 
     // 模拟WiFi和MQTT状态检查 - 减少更新频率到每2秒一次
     _statusTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      // 只有当状态真正变化时才通知监听者
-      const newWifiStatus = true; // 实际应用中应该检查真实状态
-      const newMqttStatus = true; // 实际应用中应该检查真实状态
-
-      if (wifiStatusNotifier.value != newWifiStatus) {
-        wifiStatusNotifier.value = newWifiStatus;
-      }
-
+      // 仅保留 MQTT 的示例更新，WiFi 状态由模块流驱动
+      const newMqttStatus = true; // TODO: 替换为真实 MQTT 状态
       if (mqttStatusNotifier.value != newMqttStatus) {
         mqttStatusNotifier.value = newMqttStatus;
       }
     });
+
+    // 订阅 WiFi 模块状态流，驱动主界面图标
+    final wifiModule = WebSocketServiceManager.instance.wifiModule;
+    if (wifiModule != null) {
+      _wifiStatusSubscription = wifiModule.statusStream.listen((status) {
+        final connected = status.enabled && status.connected;
+        if (wifiStatusNotifier.value != connected) {
+          wifiStatusNotifier.value = connected;
+        }
+      });
+      // 获取一次初始状态
+      wifiModule.getStatus().catchError((_) {});
+    }
   }
 
   @override
@@ -118,6 +136,7 @@ class _ClockScreenState extends State<ClockScreen>
     // 清理资源
     _timeTimer.cancel();
     _statusTimer.cancel();
+    _wifiStatusSubscription?.cancel();
     timeNotifier.dispose();
     wifiStatusNotifier.dispose();
     mqttStatusNotifier.dispose();
@@ -260,10 +279,10 @@ class StatusIconsComponent extends StatelessWidget {
           },
         ),
 
-        // MQTT/云状态图标 - 使用ValueListenableBuilder只在状态变化时更新
+        // wifi图标 - 使用ValueListenableBuilder只在状态变化时更新
         ValueListenableBuilder<bool>(
-          valueListenable: mqttStatusNotifier,
-          builder: (context, mqttConnected, child) {
+          valueListenable: wifiStatusNotifier,
+          builder: (context, wifiConnected, child) {
             return Positioned(
               left: (screenWidth - sidePanelWidth) / 3 * 2 -
                   (screenHeight > screenWidth
@@ -284,9 +303,9 @@ class StatusIconsComponent extends StatelessWidget {
                       2,
               child: _buildStatusIcon(
                 context,
-                mqttConnected
-                    ? 'source/ico/Cloud_On.svg'
-                    : 'source/ico/cloudoff.svg',
+                wifiConnected
+                    ? 'source/ico/wifi_on.svg'
+                    : 'source/ico/wifi_off.svg',
                 Colors.white,
               ),
             );
