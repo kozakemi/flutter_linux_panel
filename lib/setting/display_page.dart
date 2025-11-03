@@ -38,7 +38,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   );
   bool _brightnessLoading = true;
   String _brightnessError = '';
-  
+
   // 亮度模块
   BrightnessModule? _brightnessModule;
 
@@ -139,11 +139,11 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     try {
       // 获取亮度模块实例
       _brightnessModule = WebSocketServiceManager.instance.brightnessModule;
-      
+
       if (_brightnessModule == null) {
         throw Exception('无法获取亮度模块');
       }
-      
+
       // 监听亮度状态变化
       _brightnessModule!.statusStream.listen((status) {
         if (mounted) {
@@ -154,15 +154,14 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
           });
         }
       });
-      
+
       // 监听调节状态变化
       _brightnessModule!.adjustingStream.listen((isAdjusting) {
         // 可以在这里添加调节状态的UI反馈
       });
-      
+
       // 获取初始状态
       await _brightnessModule!.getStatus();
-      
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -203,7 +202,8 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
             subtitle: _brightnessLoading
                 ? const Text('加载中...')
                 : _brightnessError.isNotEmpty
-                    ? Text(_brightnessError, style: const TextStyle(color: Colors.red))
+                    ? Text(_brightnessError,
+                        style: const TextStyle(color: Colors.red))
                     : Text('当前: ${_brightnessStatus.percentage}%'),
             trailing: _brightnessLoading
                 ? const SizedBox(
@@ -226,12 +226,12 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.brightness_low, 
-                           color: Colors.grey[600], size: 20),
+                      Icon(Icons.brightness_low,
+                          color: Colors.grey[600], size: 20),
                       Expanded(
                         child: Slider(
                           value: _brightnessStatus.percentage.toDouble(),
-                          min: 0,
+                          min: 5,
                           max: 100,
                           divisions: 20,
                           onChanged: _brightnessStatus.autoEnabled
@@ -241,18 +241,28 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                                 },
                         ),
                       ),
-                      Icon(Icons.brightness_high, 
-                           color: Colors.grey[600], size: 20),
+                      Icon(Icons.brightness_high,
+                          color: Colors.grey[600], size: 20),
                     ],
                   ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('0%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                      Text('25%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                      Text('50%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                      Text('75%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                      Text('100%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      Text('0%',
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      Text('25%',
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      Text('50%',
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      Text('75%',
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      Text('100%',
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[600])),
                     ],
                   ),
                 ],

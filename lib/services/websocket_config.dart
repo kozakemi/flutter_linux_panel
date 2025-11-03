@@ -3,12 +3,8 @@ import 'websocket_module.dart';
 /// WebSocket配置
 class WebSocketConfig {
   // 默认使用本地地址进行开发测试，如果需要连接到实际服务器，可以修改这些值
-  static const String serverHost = '172.20.10.2';
+  static const String serverHost = 'localhost';
   static const int serverPort = 8080; // 使用不同的端口避免与Flutter开发服务器冲突
-
-  // 备用服务器配置（实际部署时使用）
-  static const String productionServerHost = '172.20.10.2';
-  static const int productionServerPort = 8080;
 
   static const Duration defaultReconnectInterval = Duration(seconds: 5);
   static const Duration defaultRequestTimeout = Duration(seconds: 10);
@@ -20,11 +16,6 @@ class WebSocketConfig {
   /// 获取完整的WebSocket URL
   static String getWebSocketUrl(String path) {
     return 'ws://$serverHost:$serverPort$path';
-  }
-
-  /// 获取生产环境WebSocket URL
-  static String getProductionWebSocketUrl(String path) {
-    return 'ws://$productionServerHost:$productionServerPort$path';
   }
 }
 
