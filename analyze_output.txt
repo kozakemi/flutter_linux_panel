@@ -1,0 +1,78 @@
+Analyzing fluter_linux_panel...                                 
+
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/calendar_page.dart:235:44 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/calendar_page.dart:261:28 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/calendar_page.dart:304:37 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/calendar_page.dart:317:42 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/calendar_page.dart:421:28 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/calendar_page.dart:456:34 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/global_tap_ripple.dart:109:53 • deprecated_member_use
+   info • The file name 'main copy.dart' isn't a lower_case_with_underscores identifier • lib/main copy.dart:1:1 • file_names
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/main copy.dart:200:33 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/main copy.dart:298:46 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/main copy.dart:454:38 • deprecated_member_use
+   info • 'textScaleFactor' is deprecated and shouldn't be used. Use textScaler instead. Use of textScaleFactor was deprecated in preparation for the upcoming nonlinear text scaling support. This feature was deprecated after v3.12.0-2.0.pre • lib/main.dart:49:17 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/main.dart:224:33 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/main.dart:341:46 • deprecated_member_use
+   info • 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss • lib/main.dart:518:38 • deprecated_member_use
+  error • The getter 'error' isn't defined for the type 'WebSocketResponse' • lib/models/brightness_models.dart:198:46 • undefined_getter
+   info • Unnecessary braces in a string interpolation • lib/models/brightness_models.dart:250:15 • unnecessary_brace_in_string_interps
+warning • Unused import: 'dart:convert' • lib/models/websocket_models.dart:1:8 • unused_import
+   info • Parameter 'type' could be a super parameter • lib/models/websocket_models.dart:54:9 • use_super_parameters
+   info • Parameter 'type' could be a super parameter • lib/models/websocket_models.dart:88:9 • use_super_parameters
+   info • Parameter 'type' could be a super parameter • lib/models/websocket_models.dart:133:9 • use_super_parameters
+   info • Unnecessary braces in a string interpolation • lib/models/wifi_models.dart:184:28 • unnecessary_brace_in_string_interps
+  error • The named parameter 'requestId' is required, but there's no corresponding argument • lib/models/wifi_models.dart:358:12 • missing_required_argument
+  error • The named parameter 'id' isn't defined • lib/models/wifi_models.dart:359:7 • undefined_named_parameter
+  error • The named parameter 'requestId' is required, but there's no corresponding argument • lib/models/wifi_models.dart:367:12 • missing_required_argument
+  error • The named parameter 'id' isn't defined • lib/models/wifi_models.dart:368:7 • undefined_named_parameter
+  error • The named parameter 'requestId' is required, but there's no corresponding argument • lib/models/wifi_models.dart:376:12 • missing_required_argument
+  error • The named parameter 'id' isn't defined • lib/models/wifi_models.dart:377:7 • undefined_named_parameter
+  error • The named parameter 'requestId' is required, but there's no corresponding argument • lib/models/wifi_models.dart:394:12 • missing_required_argument
+  error • The named parameter 'id' isn't defined • lib/models/wifi_models.dart:395:7 • undefined_named_parameter
+  error • The named parameter 'requestId' is required, but there's no corresponding argument • lib/models/wifi_models.dart:403:12 • missing_required_argument
+  error • The named parameter 'id' isn't defined • lib/models/wifi_models.dart:404:7 • undefined_named_parameter
+  error • The getter 'error' isn't defined for the type 'WebSocketResponse' • lib/models/wifi_models.dart:433:40 • undefined_getter
+warning • This 'onError' handler must return a value assignable to 'BrightnessStatus?', but ends without returning a value • lib/services/brightness_module.dart:124:34 • body_might_complete_normally_catch_error
+warning • This 'onError' handler must return a value assignable to 'BrightnessStatus?', but ends without returning a value • lib/services/brightness_module.dart:280:34 • body_might_complete_normally_catch_error
+warning • This 'onError' handler must return a value assignable to 'BrightnessStatus?', but ends without returning a value • lib/services/brightness_module.dart:296:34 • body_might_complete_normally_catch_error
+   info • Don't invoke 'print' in production code • lib/services/display_service.dart:31:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/display_service.dart:34:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/display_service.dart:50:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/services/display_service.dart:53:7 • avoid_print
+  error • The getter 'defaultServerUrl' isn't defined for the type 'WebSocketConfig' • lib/services/websocket_base_module.dart:27:38 • undefined_getter
+  error • The getter 'heartbeatInterval' isn't defined for the type 'ModuleConfig' • lib/services/websocket_base_module.dart:55:33 • undefined_getter
+  error • The getter 'maxReconnectAttempts' isn't defined for the type 'ModuleConfig' • lib/services/websocket_base_module.dart:57:36 • undefined_getter
+warning • Unused import: 'websocket_config.dart' • lib/services/websocket_connection_manager.dart:6:8 • unused_import
+   info • Use 'const' with the constructor to improve performance • lib/services/websocket_connection_manager.dart:64:13 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/services/websocket_connection_manager.dart:126:13 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/services/websocket_connection_manager.dart:157:13 • prefer_const_constructors
+   info • Use 'const' with the constructor to improve performance • lib/services/websocket_connection_manager.dart:188:33 • prefer_const_constructors
+   info • Unnecessary braces in a string interpolation • lib/services/websocket_connection_manager.dart:271:26 • unnecessary_brace_in_string_interps
+  error • 1 positional argument expected by 'WebSocketModuleManagerImpl.new', but 0 found • lib/services/websocket_service_manager.dart:32:51 • not_enough_positional_arguments
+  error • The method 'initialize' isn't defined for the type 'WebSocketModuleManagerImpl' • lib/services/websocket_service_manager.dart:33:28 • undefined_method
+  error • The method 'startAllModules' isn't defined for the type 'WebSocketModuleManagerImpl' • lib/services/websocket_service_manager.dart:36:28 • undefined_method
+  error • The method 'getModulesHealthStatus' isn't defined for the type 'WebSocketModuleManagerImpl' • lib/services/websocket_service_manager.dart:113:27 • undefined_method
+warning • This 'onError' handler must return a value assignable to 'WiFiStatus?', but ends without returning a value • lib/services/wifi_module.dart:143:34 • body_might_complete_normally_catch_error
+warning • This 'onError' handler must return a value assignable to 'WiFiStatus?', but ends without returning a value • lib/services/wifi_module.dart:357:34 • body_might_complete_normally_catch_error
+   info • Use 'const' with the constructor to improve performance • lib/setting/display_page.dart:33:40 • prefer_const_constructors
+   info • Don't invoke 'print' in production code • lib/setting/display_page.dart:81:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/setting/display_page.dart:93:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/setting/display_page.dart:95:7 • avoid_print
+warning • The value of the field '_connectionState' isn't used • lib/setting/wifi_page.dart:25:28 • unused_field
+warning • The value of the field '_isConnecting' isn't used • lib/setting/wifi_page.dart:28:8 • unused_field
+   info • Don't invoke 'print' in production code • lib/setting/wifi_page.dart:65:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/setting/wifi_page.dart:80:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/setting/wifi_page.dart:83:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/setting/wifi_page.dart:86:7 • avoid_print
+   info • Don't invoke 'print' in production code • lib/setting/wifi_page.dart:105:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/setting/wifi_page.dart:110:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/setting/wifi_page.dart:116:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/setting/wifi_page.dart:121:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/setting/wifi_page.dart:194:5 • avoid_print
+   info • Don't invoke 'print' in production code • lib/setting/wifi_page.dart:200:9 • avoid_print
+   info • Don't invoke 'print' in production code • lib/setting/wifi_page.dart:208:11 • avoid_print
+   info • Don't invoke 'print' in production code • lib/setting/wifi_page.dart:214:9 • avoid_print
+warning • The declaration '_disconnectFromNetwork' isn't referenced • lib/setting/wifi_page.dart:474:16 • unused_element
+
+74 issues found. (ran in 4.1s)

@@ -39,14 +39,6 @@
 }
 ```
 
-事件（Event，后端主动推送）：
-
-```json
-{
-  "type": "<domain>_event",
-  "data": { /* event payload */ }
-}
-```
 
 说明：
 
@@ -149,22 +141,6 @@
   "error": 0,
   "data": {
     "auto_brightness": true     // 当前自动亮度状态
-  }
-}
-```
-
-## 事件推送（可选）
-
-后端可在亮度变化时主动推送事件，前端订阅处理即可。
-
-* 亮度变化事件：`brightness_event`
-
-```json
-{
-  "type": "brightness_event",
-  "data": {
-    "brightness": 85,           // 新的亮度百分比
-    "auto_brightness": false    // 自动亮度状态（可选）
   }
 }
 ```

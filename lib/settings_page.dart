@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'setting/wifi_page.dart';
 import 'setting/display_page.dart';
+import 'pages/websocket_test_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -98,6 +99,14 @@ class _SettingsPageState extends State<SettingsPage> {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _showNotImplemented('蓝牙'),
             ),
+            // ListTile(
+            //   leading: const Icon(Icons.network_check, color: Colors.blue),
+            //   title: const Text('WebSocket测试'),
+            //   trailing: const Icon(Icons.chevron_right),
+            //   onTap: () => Navigator.of(context).push(
+            //     MaterialPageRoute(builder: (_) => const WebSocketTestPage()),
+            //   ),
+            // ),
           ]),
           const SizedBox(height: 24),
           _sectionHeader('显示与声音'),

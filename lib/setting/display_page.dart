@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/display_service.dart';
+import '../services/websocket_service_manager.dart';
+import '../services/brightness_module.dart';
+import '../models/brightness_models.dart';
 
 class DisplaySettingsPage extends StatefulWidget {
   const DisplaySettingsPage({super.key});
@@ -26,14 +29,34 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   int _currentIndex = 0;
   bool _isLoading = true;
 
+  // 亮度相关状态
+  BrightnessStatus _brightnessStatus = BrightnessStatus(
+    current: 50,
+    max: 100,
+    autoEnabled: false,
+    available: false,
+  );
+  bool _brightnessLoading = true;
+  String _brightnessError = '';
+  
+  // 亮度模块
+  BrightnessModule? _brightnessModule;
+
   @override
   void initState() {
     super.initState();
-    _loadScaleFactor();
+    _loadScale();
+    _initBrightnessModule();
+  }
+
+  @override
+  void dispose() {
+    // 亮度模块由 WebSocketServiceManager 管理，无需手动释放
+    super.dispose();
   }
 
   /// 加载保存的缩放比例
-  Future<void> _loadScaleFactor() async {
+  Future<void> _loadScale() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedScale = prefs.getDouble(_scaleFactorKey) ?? 1.0;
@@ -109,6 +132,145 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
         }
       }
     }
+  }
+
+  /// 初始化亮度模块
+  Future<void> _initBrightnessModule() async {
+    try {
+      // 获取亮度模块实例
+      _brightnessModule = WebSocketServiceManager.instance.brightnessModule;
+      
+      if (_brightnessModule == null) {
+        throw Exception('无法获取亮度模块');
+      }
+      
+      // 监听亮度状态变化
+      _brightnessModule!.statusStream.listen((status) {
+        if (mounted) {
+          setState(() {
+            _brightnessStatus = status;
+            _brightnessLoading = false;
+            _brightnessError = '';
+          });
+        }
+      });
+      
+      // 监听调节状态变化
+      _brightnessModule!.adjustingStream.listen((isAdjusting) {
+        // 可以在这里添加调节状态的UI反馈
+      });
+      
+      // 获取初始状态
+      await _brightnessModule!.getStatus();
+      
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _brightnessError = '初始化失败: $e';
+          _brightnessLoading = false;
+        });
+      }
+    }
+  }
+
+  /// 设置亮度
+  Future<void> _setBrightness(int brightness) async {
+    if (_brightnessModule != null) {
+      await _brightnessModule!.setBrightness(brightness);
+    }
+  }
+
+  /// 设置自动亮度
+  Future<void> _setAutoBrightness(bool enable) async {
+    if (_brightnessModule != null) {
+      await _brightnessModule!.setAutoMode(enable);
+    }
+  }
+
+  /// 构建亮度调节部分
+  Widget _buildBrightnessSection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          // 亮度滑块
+          ListTile(
+            title: const Text('屏幕亮度'),
+            subtitle: _brightnessLoading
+                ? const Text('加载中...')
+                : _brightnessError.isNotEmpty
+                    ? Text(_brightnessError, style: const TextStyle(color: Colors.red))
+                    : Text('当前: ${_brightnessStatus.percentage}%'),
+            trailing: _brightnessLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(
+                    '${_brightnessStatus.percentage}%',
+                    style: TextStyle(
+                      color: Theme.of(context).primaryColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+          ),
+          if (!_brightnessLoading && _brightnessError.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.brightness_low, 
+                           color: Colors.grey[600], size: 20),
+                      Expanded(
+                        child: Slider(
+                          value: _brightnessStatus.percentage.toDouble(),
+                          min: 0,
+                          max: 100,
+                          divisions: 20,
+                          onChanged: _brightnessStatus.autoEnabled
+                              ? null
+                              : (value) {
+                                  _setBrightness(value.round());
+                                },
+                        ),
+                      ),
+                      Icon(Icons.brightness_high, 
+                           color: Colors.grey[600], size: 20),
+                    ],
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('0%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      Text('25%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      Text('50%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      Text('75%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      Text('100%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          // 自动亮度开关
+          // if (!_brightnessLoading && _brightnessError.isEmpty)
+          //   ListTile(
+          //     title: const Text('自动亮度'),
+          //     subtitle: const Text('根据环境光线自动调节屏幕亮度'),
+          //     trailing: Switch(
+          //       value: _brightnessStatus.autoEnabled,
+          //       onChanged: _setAutoBrightness,
+          //     ),
+          //   ),
+        ],
+      ),
+    );
   }
 
   /// 构建节标题
@@ -237,6 +399,8 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                     ],
                   ),
                 ),
+                _sectionHeader('屏幕亮度'),
+                _buildBrightnessSection(),
                 _sectionHeader('预览'),
                 _buildPreviewSection(),
                 Container(

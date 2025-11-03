@@ -1,0 +1,94 @@
+Launching lib/main.dart on Chrome in debug mode...
+This app is linked to the debug service: ws://127.0.0.1:36283/ljJrJzHguiQ=/ws
+Debug service listening on ws://127.0.0.1:36283/ljJrJzHguiQ=/ws
+Connecting to VM Service at ws://127.0.0.1:36283/ljJrJzHguiQ=/ws
+Connected to the VM Service.
+DisplayService: 已加载缩放设置 - 1
+[ServiceManager] 初始化WebSocket服务管理器
+[ServiceManager] 服务管理器未初始化，无法获取WiFi模块
+[ServiceManager] 服务管理器未初始化，无法获取亮度模块
+[ServiceManager] 服务管理器未初始化，无法获取WiFi模块
+[ServiceManager] 服务管理器未初始化，无法获取亮度模块
+[ModuleManager] 开始初始化所有模块
+[ModuleManager] 创建模块: wifi
+[BaseModule] 初始化模块: wifi
+[WiFiModule] WiFi模块初始化
+[ConnectionManager] 连接到WebSocket: ws://172.20.10.2:8080/wifi
+[ConnectionManager] 安排重连 (1/5)
+[BaseModule] 模块连接状态变化: wifi -> WebSocketConnectionState.connecting
+[BaseModule] 模块初始化完成: wifi
+[WebSocketRouter] 模块已注册: /wifi -> wifi
+[ModuleManager] 模块启动成功: wifi
+[ModuleManager] 创建模块: brightness
+[BaseModule] 模块连接状态变化: wifi -> WebSocketConnectionState.disconnected
+[BaseModule] 初始化模块: brightness
+[BrightnessModule] 亮度模块初始化
+[ConnectionManager] 连接到WebSocket: ws://172.20.10.2:8080/brightness
+[ConnectionManager] 安排重连 (1/5)
+[BaseModule] 模块连接状态变化: brightness -> WebSocketConnectionState.connecting
+[BaseModule] 模块初始化完成: brightness
+[WebSocketRouter] 模块已注册: /brightness -> brightness
+[ModuleManager] 模块启动成功: brightness
+[ModuleManager] 模块初始化完成
+[ConnectionManager] WebSocket连接失败: Unsupported operation: Platform._version
+[ConnectionManager] UnsupportedError (Unsupported operation: Platform._version)
+[ConnectionManager] _StackTrace (dart-sdk/lib/_internal/js_dev_runtime/private/ddc_runtime/errors.dart 307:3  throw_
+                    dart-sdk/lib/_internal/js_dev_runtime/private/profile.dart 117:39            _version
+profile.dart:117
+                    dart-sdk/lib/io/platform_impl.dart 123:32                                    get version
+platform_impl.dart:123
+                    dart-sdk/lib/io/platform.dart 111:36                                         get version
+platform.dart:111
+                    dart-sdk/lib/_internal/js_dev_runtime/private/profile.dart 117:39            get
+profile.dart:117
+                    dart-sdk/lib/_http/http_impl.dart 4131:26                                    _getHttpVersion
+http_impl.dart:4131
+                    dart-sdk/lib/_http/http_impl.dart 2798:23                                    new
+http_impl.dart:2798
+                    dart-sdk/lib/_http/http.dart 1357:14                                         new
+http.dart:1357
+                    dart-sdk/lib/_http/websocket_impl.dart 1062:41                               get _httpClient
+websocket_impl.dart:1062
+                    dart-sdk/lib/_internal/js_dev_runtime/private/profile.dart 117:39            get
+profile.dart:117
+                    dart-sdk/lib/_http/websocket_impl.dart 1095:29                               connect
+websocket_impl.dart:1095
+                    dart-sdk/lib/_http/websocket.dart 332:24                                     connect
+websocket.dart:332
+                    packages/demo1/services/websocket_connection_manager.dart 78:12              <fn>
+websocket_connection_manager.dart:78
+                    dart-sdk/lib/_internal/js_dev_runtime/patch/async_patch.dart 622:19          <fn>
+async_patch.dart:622
+                    dart-sdk/lib/_internal/js_dev_runtime/patch/async_patch.dart 647:23          <fn>
+async_patch.dart:647
+                    dart-sdk/lib/_internal/js_dev_runtime/patch/async_patch.dart 541:3           _asyncStartSync
+async_patch.dart:541
+                    packages/demo1/services/websocket_connection_manager.dart 61:16              connect
+websocket_connection_manager.dart:61
+                    packages/demo1/services/websocket_base_module.dart 71:32                     <fn>
+websocket_base_module.dart:71
+                    dart-sdk/lib/_internal/js_dev_runtime/patch/async_patch.dart 622:19          <fn>
+async_patch.dart:622
+                    dart-sdk/lib/_internal/js_dev_runtime/patch/async_patch.dart 647:23          <fn>
+async_patch.dart:647
+                    dart-sdk/lib/_internal/js_dev_runtime/patch/async_patch.dart 593:31          <fn>
+async_patch.dart:593
+                    dart-sdk/lib/async/zone.dart 1849:54                                         runUnary
+zone.dart:1849
+                    dart-sdk/lib/async/future_impl.dart 208:18                                   handleValue
+future_impl.dart:208
+                    dart-sdk/lib/async/future_impl.dart 932:44                                   handleValueCallback
+future_impl.dart:932
+                    dart-sdk/lib/async/future_impl.dart 961:13                                   _propagateToListeners
+future_impl.dart:961
+                    dart-sdk/lib/async/future_impl.dart 712:5                                    [_completeWithValue]
+future_impl.dart:712
+                    dart-sdk/lib/async/future_impl.dart 792:7                                    callback
+future_impl.dart:792
+                    dart-sdk/lib/async/schedule_microtask.dart 40:11                             _microtaskLoop
+schedule_microtask.dart:40
+                    dart-sdk/lib/async/schedule_microtask.dart 49:5                              _startMicrotaskLoop
+schedule_microtask.dart:49
+                    dart-sdk/lib/_internal/js_dev_runtime/patch/async_patch.dart 186:7           <fn>
+async_patch.dart:186
+                    )

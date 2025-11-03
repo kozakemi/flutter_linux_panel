@@ -54,21 +54,6 @@
 
 除特别说明，所有响应均包含：`success`、`error`、`message`、`data`。
 
-### 1) Ping（可选
-- 请求：`ping_request`
-```json
-{ "type": "ping_request", "request_id": "req-1", "data": {} }
-```
-- 响应：`ping_response`
-```json
-{
-  "type": "ping_response",
-  "request_id": "req-1",
-  "success": true,
-  "error": 0,
-  "data": { "uptime_ms": 1234567 }
-}
-```
 
 ### 2) 开关 Wi‑Fi
 - 请求：`wifi_enable_request`
@@ -214,46 +199,6 @@
 }
 ```
 
-### 7) 配置档（可选）
-- 列出配置：`wifi_profiles_request` → `wifi_profiles_response`
-```json
-{
-  "type": "wifi_profiles_response",
-  "request_id": "req-8",
-  "success": true,
-  "error": 0,
-  "data": {
-    "profiles": [
-      { "ssid": "MyHomeNetwork", "security": "WPA2", "autoconnect": true },
-      { "ssid": "Office", "security": "WPA2", "autoconnect": false }
-    ]
-  }
-}
-```
-- 保存配置：`wifi_profile_save_request` → `wifi_profile_save_response`
-```json
-{ "type": "wifi_profile_save_request", "request_id": "req-9", "data": { "ssid": "MyHomeNetwork", "password": "mysecretpassword", "autoconnect": true } }
-```
-- 删除配置：`wifi_profile_delete_request` → `wifi_profile_delete_response`
-```json
-{ "type": "wifi_profile_delete_request", "request_id": "req-10", "data": { "ssid": "MyHomeNetwork" } }
-```
-
-## 事件推送（可选）
-后端可在状态变化时主动推送事件，前端订阅处理即可。
-
-- 连接状态事件：`wifi_connect_event`
-```json
-{ "type": "wifi_connect_event", "data": { "connected": true, "ssid": "MyHomeNetwork" } }
-```
-- 断开事件：`wifi_disconnect_event`
-```json
-{ "type": "wifi_disconnect_event", "data": { "connected": false, "ssid": "MyHomeNetwork" } }
-```
-- 扫描完成事件：`wifi_scan_event`
-```json
-{ "type": "wifi_scan_event", "data": { "networks": [ /* 同上 */ ] } }
-```
 
 ## 错误码枚举
 

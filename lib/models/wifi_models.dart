@@ -1,6 +1,8 @@
-// Wi-Fi 数据模型，基于 WEBSOCKET_WIFI_API.md 文档定义
+// WiFi 数据模型，基于新的WebSocket架构和 WEBSOCKET_WIFI_API.md 文档定义
 
-/// Wi-Fi 错误码枚举
+import '../models/websocket_models.dart';
+
+/// WiFi 错误码枚举
 enum WiFiError {
   ok(0),
   unknown(-1),
@@ -76,119 +78,11 @@ enum WiFiError {
   }
 }
 
-/// WebSocket 消息基类
-abstract class WebSocketMessage {
-  final String type;
-  final String? requestId;
-
-  const WebSocketMessage({
-    required this.type,
-    this.requestId,
-  });
-
-  Map<String, dynamic> toJson();
-}
-
-/// WebSocket 请求消息
-class WebSocketRequest extends WebSocketMessage {
-  final Map<String, dynamic> data;
-
-  const WebSocketRequest({
-    required super.type,
-    super.requestId,
-    required this.data,
-  });
-
-  @override
-  Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{
-      'type': type,
-      'data': data,
-    };
-    if (requestId != null) {
-      json['request_id'] = requestId;
-    }
-    return json;
-  }
-}
-
-/// WebSocket 响应消息
-class WebSocketResponse extends WebSocketMessage {
-  final bool success;
-  final int error;
-  final String? message;
-  final Map<String, dynamic> data;
-
-  const WebSocketResponse({
-    required super.type,
-    super.requestId,
-    required this.success,
-    required this.error,
-    this.message,
-    required this.data,
-  });
-
-  factory WebSocketResponse.fromJson(Map<String, dynamic> json) {
-    return WebSocketResponse(
-      type: json['type'] as String,
-      requestId: json['request_id'] as String?,
-      success: json['success'] as bool,
-      error: json['error'] as int,
-      message: json['message'] as String?,
-      data: json['data'] as Map<String, dynamic>? ?? {},
-    );
-  }
-
-  @override
-  Map<String, dynamic> toJson() {
-    final json = <String, dynamic>{
-      'type': type,
-      'success': success,
-      'error': error,
-      'data': data,
-    };
-    if (requestId != null) {
-      json['request_id'] = requestId;
-    }
-    if (message != null) {
-      json['message'] = message;
-    }
-    return json;
-  }
-
-  WiFiError get wifiError => WiFiError.fromCode(error);
-}
-
-/// WebSocket 事件消息
-class WebSocketEvent extends WebSocketMessage {
-  final Map<String, dynamic> data;
-
-  const WebSocketEvent({
-    required super.type,
-    required this.data,
-  });
-
-  factory WebSocketEvent.fromJson(Map<String, dynamic> json) {
-    return WebSocketEvent(
-      type: json['type'] as String,
-      data: json['data'] as Map<String, dynamic>? ?? {},
-    );
-  }
-
-  @override
-  Map<String, dynamic> toJson() {
-    return {
-      'type': type,
-      'data': data,
-    };
-  }
-}
-
-/// Wi-Fi 网络信息
+/// WiFi 网络信息
 class WiFiNetwork {
   final String ssid;
   final String bssid;
-  final int signal; // 0-100
+  final int signal; // dBm值
   final String security;
   final int channel;
   final int frequencyMhz;
@@ -241,13 +135,14 @@ class WiFiNetwork {
   /// 是否需要密码
   bool get requiresPassword {
     if (security.isEmpty) return false;
-    
+
     // 开放网络：只包含 [ESS] 和/或 [UTF-8] 的网络不需要密码
-    final openNetworkPattern = RegExp(r'^\[ESS\](\[UTF-8\])?$|^\[ESS\]\[UTF-8\]$');
+    final openNetworkPattern =
+        RegExp(r'^\[ESS\](\[UTF-8\])?$|^\[ESS\]\[UTF-8\]$');
     if (openNetworkPattern.hasMatch(security)) {
       return false;
     }
-    
+
     // 加密网络：包含 WPA、WPA2、PSK、WEP 等关键字的网络需要密码
     final encryptionKeywords = ['WPA', 'WPA2', 'PSK', 'WEP', 'TKIP', 'CCMP'];
     return encryptionKeywords.any((keyword) => security.contains(keyword));
@@ -272,19 +167,15 @@ class WiFiNetwork {
     // 使用线性插值计算中间值
     if (signal >= -50) {
       // -30 到 -50 之间：100% 到 75%
-      // 公式：100 - ((-30 - signal) / (-30 - (-50))) * (100 - 75)
       return (100 - ((-30 - signal) / 20) * 25).round();
     } else if (signal >= -60) {
       // -50 到 -60 之间：75% 到 50%
-      // 公式：75 - ((-50 - signal) / (-50 - (-60))) * (75 - 50)
       return (75 - ((-50 - signal) / 10) * 25).round();
     } else if (signal >= -70) {
       // -60 到 -70 之间：50% 到 25%
-      // 公式：50 - ((-60 - signal) / (-60 - (-70))) * (50 - 25)
       return (50 - ((-60 - signal) / 10) * 25).round();
     } else {
       // -70 到 -80 之间：25% 到 0%
-      // 公式：25 - ((-70 - signal) / (-70 - (-80))) * (25 - 0)
       return (25 - ((-70 - signal) / 10) * 25).round();
     }
   }
@@ -293,7 +184,7 @@ class WiFiNetwork {
   String get signalDbm => '${signal} dBm';
 }
 
-/// Wi-Fi 状态信息
+/// WiFi 状态信息
 class WiFiStatus {
   final bool enabled;
   final bool connected;
@@ -400,7 +291,7 @@ class WiFiStatus {
   }
 }
 
-/// Wi-Fi 扫描结果
+/// WiFi 扫描结果
 class WiFiScanResult {
   final List<WiFiNetwork> networks;
 
@@ -438,5 +329,108 @@ class WiFiScanResult {
   /// 其他网络
   List<WiFiNetwork> get otherNetworks {
     return networks.where((n) => !n.recorded).toList();
+  }
+}
+
+/// WiFi 请求类型常量
+class WiFiRequestTypes {
+  // 按照 WEBSOCKET_WIFI_API.md 统一为 *_request 后缀
+  static const String toggle = 'wifi_enable_request';
+  static const String getStatus = 'wifi_status_request';
+  static const String scan = 'wifi_scan_request';
+  static const String connect = 'wifi_connect_request';
+  static const String disconnect = 'wifi_disconnect_request';
+}
+
+/// WiFi 事件类型常量
+class WiFiEventTypes {
+  static const String statusChanged = 'wifi_status_changed';
+  static const String scanCompleted = 'wifi_scan_completed';
+  static const String connectionChanged = 'wifi_connection_changed';
+}
+
+/// WiFi 请求构建器
+class WiFiRequestBuilder {
+  /// 创建开关WiFi请求
+  static WebSocketRequest createToggleRequest({
+    required bool enable,
+    String? requestId,
+  }) {
+    return WebSocketRequest(
+      requestId: requestId ?? 'req-${DateTime.now().millisecondsSinceEpoch}',
+      type: WiFiRequestTypes.toggle,
+      data: {'enable': enable},
+    );
+  }
+
+  /// 创建获取状态请求
+  static WebSocketRequest createGetStatusRequest({String? requestId}) {
+    return WebSocketRequest(
+      requestId: requestId ?? 'req-${DateTime.now().millisecondsSinceEpoch}',
+      type: WiFiRequestTypes.getStatus,
+      data: {},
+    );
+  }
+
+  /// 创建扫描请求
+  static WebSocketRequest createScanRequest({String? requestId}) {
+    return WebSocketRequest(
+      requestId: requestId ?? 'req-${DateTime.now().millisecondsSinceEpoch}',
+      type: WiFiRequestTypes.scan,
+      data: {},
+    );
+  }
+
+  /// 创建连接请求
+  static WebSocketRequest createConnectRequest({
+    required String ssid,
+    String? password,
+    String? requestId,
+  }) {
+    final data = <String, dynamic>{'ssid': ssid};
+    if (password != null && password.isNotEmpty) {
+      data['password'] = password;
+    }
+
+    return WebSocketRequest(
+      requestId: requestId ?? 'req-${DateTime.now().millisecondsSinceEpoch}',
+      type: WiFiRequestTypes.connect,
+      data: data,
+    );
+  }
+
+  /// 创建断开连接请求
+  static WebSocketRequest createDisconnectRequest({String? requestId}) {
+    return WebSocketRequest(
+      requestId: requestId ?? 'req-${DateTime.now().millisecondsSinceEpoch}',
+      type: WiFiRequestTypes.disconnect,
+      data: {},
+    );
+  }
+}
+
+/// WiFi 响应解析器
+class WiFiResponseParser {
+  /// 解析WiFi状态响应
+  static WiFiStatus? parseStatusResponse(WebSocketResponse response) {
+    if (!response.success || response.data.isEmpty) {
+      return null;
+    }
+
+    return WiFiStatus.fromJson(response.data);
+  }
+
+  /// 解析扫描结果响应
+  static WiFiScanResult? parseScanResponse(WebSocketResponse response) {
+    if (!response.success || response.data.isEmpty) {
+      return null;
+    }
+
+    return WiFiScanResult.fromJson(response.data);
+  }
+
+  /// 解析错误信息
+  static WiFiError parseError(WebSocketResponse response) {
+    return WiFiError.fromCode(response.errorCode);
   }
 }

@@ -6,8 +6,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:virtual_keyboard_multi_language/virtual_keyboard_multi_language.dart';
 
 import '../models/wifi_models.dart';
-import '../services/wifi_websocket_service.dart';
-import '../services/websocket_client.dart';
+import '../models/websocket_models.dart';
+import '../services/websocket_service_manager.dart';
+import '../services/wifi_module.dart';
 
 class WiFiSettingsPage extends StatefulWidget {
   const WiFiSettingsPage({super.key});
@@ -17,20 +18,16 @@ class WiFiSettingsPage extends StatefulWidget {
 }
 
 class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
-  final WiFiWebSocketService _wifiService = WiFiWebSocketService.instance;
+  WiFiModule? _wifiModule;
 
   WiFiStatus _wifiStatus = const WiFiStatus(enabled: false, connected: false);
   WiFiScanResult _scanResult = const WiFiScanResult(networks: []);
-  WebSocketConnectionState _connectionState =
-      WebSocketConnectionState.disconnected;
 
   bool _isScanning = false;
-  bool _isConnecting = false;
 
   StreamSubscription? _statusSubscription;
   StreamSubscription? _scanSubscription;
-  StreamSubscription? _connectionEventSubscription;
-  StreamSubscription? _connectionStateSubscription;
+  StreamSubscription? _scanningSubscription;
 
   // 添加定时器变量
   Timer? _statusUpdateTimer;
@@ -46,8 +43,7 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
   void dispose() {
     _statusSubscription?.cancel();
     _scanSubscription?.cancel();
-    _connectionEventSubscription?.cancel();
-    _connectionStateSubscription?.cancel();
+    _scanningSubscription?.cancel();
     _statusUpdateTimer?.cancel(); // 取消定时器
     super.dispose();
   }
@@ -67,21 +63,16 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
 
   /// 自动更新状态（定时器回调）
   Future<void> _autoUpdateStatus() async {
+    if (_wifiModule == null) return;
+
     try {
       // 刷新WiFi状态
-      final statusError = await _wifiService.refreshStatus();
-      if (statusError != WiFiError.ok) {
-        print('WiFi 页面: 定时器 - 获取状态失败: ${statusError.message}');
-        return;
-      }
+      await _wifiModule!.getStatus();
 
       // 只有在WiFi开启时才扫描网络，避免不必要的请求
       if (_wifiStatus.enabled && !_isScanning) {
         print('WiFi 页面: 定时器 - WiFi已开启，执行网络扫描');
-        final scanError = await _wifiService.scanNetworks();
-        if (scanError != WiFiError.ok) {
-          print('WiFi 页面: 定时器 - 扫描网络失败: ${scanError.message}');
-        }
+        await _wifiModule!.scanNetworks();
       } else {
         print('WiFi 页面: 定时器 - WiFi未开启或正在扫描，跳过网络扫描');
       }
@@ -93,53 +84,48 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
   /// 初始化 WebSocket 服务
   Future<void> _initializeService() async {
     try {
-      await _wifiService.initialize();
+      // 初始化服务管理器
+      await WebSocketServiceManager.instance.initialize();
+      
+      // 获取WiFi模块
+      _wifiModule = WebSocketServiceManager.instance.wifiModule;
+      
+      if (_wifiModule == null) {
+        throw Exception('WiFi模块初始化失败');
+      }
 
       // 监听状态变化
-      _statusSubscription = _wifiService.statusStream.listen((status) {
-        print(
-            'WiFi 页面: 收到状态更新 - enabled: ${status.enabled}, connected: ${status.connected}');
+      _statusSubscription = _wifiModule!.statusStream.listen((status) {
+        print('WiFi 页面: 收到状态更新 - enabled: ${status.enabled}, connected: ${status.connected}');
         if (mounted) {
           setState(() {
             _wifiStatus = status;
           });
-          print(
-              'WiFi 页面: 界面状态已更新 - enabled: ${_wifiStatus.enabled}, connected: ${_wifiStatus.connected}');
+          print('WiFi 页面: 界面状态已更新 - enabled: ${_wifiStatus.enabled}, connected: ${_wifiStatus.connected}');
         }
       });
 
       // 监听扫描结果
-      _scanSubscription = _wifiService.scanStream.listen((scanResult) {
+      _scanSubscription = _wifiModule!.scanResultStream.listen((scanResult) {
         print('WiFi 页面: 收到扫描结果 - 网络数量: ${scanResult.networks.length}');
         if (mounted) {
           setState(() {
             _scanResult = scanResult;
-            _isScanning = false;
           });
-          print(
-              'WiFi 页面: 扫描结果已更新 - 网络数量: ${_scanResult.networks.length}, 显示条件: enabled=${_wifiStatus.enabled}, hasNetworks=${_scanResult.networks.isNotEmpty}');
+          print('WiFi 页面: 扫描结果已更新 - 网络数量: ${_scanResult.networks.length}, 显示条件: enabled=${_wifiStatus.enabled}, hasNetworks=${_scanResult.networks.isNotEmpty}');
         }
       });
 
-      // 监听连接事件
-      _connectionEventSubscription =
-          _wifiService.connectionEventStream.listen((message) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
-          );
-        }
-      });
-
-      // 监听 WebSocket 连接状态
-      _connectionStateSubscription =
-          _wifiService.connectionStateStream.listen((state) {
+      // 监听扫描状态
+      _scanningSubscription = _wifiModule!.scanningStream.listen((isScanning) {
         if (mounted) {
           setState(() {
-            _connectionState = state;
+            _isScanning = isScanning;
           });
         }
       });
+
+
 
       // 初始扫描
       await _loadStatusAndScan();
@@ -154,39 +140,41 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
 
   /// 加载状态并扫描网络
   Future<void> _loadStatusAndScan() async {
-    setState(() {
-      _isScanning = true;
-    });
+    if (_wifiModule == null) return;
 
     // 刷新状态
-    final statusError = await _wifiService.refreshStatus();
-    if (statusError != WiFiError.ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('获取状态失败: ${statusError.message}')),
-      );
+    try {
+      await _wifiModule!.getStatus();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('获取状态失败: $e')),
+        );
+      }
     }
 
     // 扫描网络
-    final scanError = await _wifiService.scanNetworks();
-    if (scanError != WiFiError.ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('扫描网络失败: ${scanError.message}')),
-      );
-      setState(() {
-        _isScanning = false;
-      });
+    try {
+      await _wifiModule!.scanNetworks();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('扫描网络失败: $e')),
+        );
+      }
     }
   }
 
   /// 开关 Wi-Fi
   Future<void> _toggleWifi(bool value) async {
+    if (_wifiModule == null) return;
+
     print('WiFi 页面: 用户点击开关 - 目标状态: $value, 当前状态: ${_wifiStatus.enabled}');
 
-    final error = await _wifiService.enableWiFi(value);
-    print('WiFi 页面: enableWiFi 返回结果: $error');
-
-    if (mounted) {
-      if (error == WiFiError.ok) {
+    try {
+      await _wifiModule!.toggleWiFi(value);
+      
+      if (mounted) {
         print('WiFi 页面: 操作成功，显示成功消息');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -198,10 +186,12 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
           print('WiFi 页面: Wi-Fi 开启，执行状态和扫描刷新');
           await _loadStatusAndScan();
         }
-      } else {
-        print('WiFi 页面: 操作失败 - ${error.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        print('WiFi 页面: 操作失败 - $e');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('操作失败: ${error.message}')),
+          SnackBar(content: Text('操作失败: $e')),
         );
       }
     }
@@ -209,8 +199,10 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
 
   /// 连接到 Wi-Fi 网络
   Future<void> _connectFlow(String ssid) async {
+    if (_wifiModule == null) return;
+
     // 检查是否已连接到该网络
-    if (_wifiService.isConnectedTo(ssid)) {
+    if (_wifiStatus.connected && _wifiStatus.currentNetwork?.ssid == ssid) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('已连接到 $ssid')),
       );
@@ -218,9 +210,12 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
     }
 
     // 检查网络是否需要密码
-    final requiresPassword = _wifiService.networkRequiresPassword(ssid);
+    final network = _scanResult.networks.firstWhere(
+      (n) => n.ssid == ssid,
+      orElse: () => WiFiNetwork(ssid: ssid, bssid: '', signal: 0, security: '', channel: 0, frequencyMhz: 0, recorded: false),
+    );
 
-    if (!requiresPassword) {
+    if (!network.requiresPassword) {
       // 直接连接无密码网络
       await _connectToNetwork(ssid, '');
       return;
@@ -255,24 +250,23 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
               });
 
               // 连接网络
-              final error = await _wifiService.connectToNetwork(
-                ssid: ssid,
-                password: inputPassword,
-              );
+              try {
+                await _wifiModule!.connectToNetwork(ssid, password: inputPassword);
+                
+                // 弹窗可能已经关闭，检查 context 是否有效
+                if (!ctx.mounted) return;
 
-              // 弹窗可能已经关闭，检查 context 是否有效
-              if (!ctx.mounted) return;
-
-              if (error == WiFiError.ok) {
                 Navigator.of(ctx).pop();
                 ScaffoldMessenger.of(context)
                     .showSnackBar(SnackBar(content: Text('已连接到 $ssid')));
-              } else {
+              } catch (e) {
+                if (!ctx.mounted) return;
+                
                 setModalState(() {
                   connecting = false;
                 });
                 ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('连接失败: ${error.message}')));
+                    SnackBar(content: Text('连接失败: $e')));
               }
             }
 
@@ -414,80 +408,47 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
 
   /// 连接到网络的辅助方法
   Future<void> _connectToNetwork(String ssid, String password) async {
-    setState(() {
-      _isConnecting = true;
-    });
+    if (_wifiModule == null) return;
 
-    final error = await _wifiService.connectToNetwork(
-      ssid: ssid,
-      password: password,
-    );
-
-    setState(() {
-      _isConnecting = false;
-    });
-
-    if (error == WiFiError.ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已连接到 $ssid')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('连接失败: ${error.message}')),
-      );
+    try {
+      await _wifiModule!.connectToNetwork(ssid, password: password);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已连接到 $ssid')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('连接失败: $e')),
+        );
+      }
     }
   }
 
   /// 连接到已保存的网络（无需密码）
   Future<void> _connectToSavedNetwork(String ssid) async {
-    setState(() {
-      _isConnecting = true;
-    });
+    if (_wifiModule == null) return;
 
-    final error = await _wifiService.connectToNetwork(
-      ssid: ssid,
-      password: '', // 已保存的网络使用空密码
-    );
-
-    setState(() {
-      _isConnecting = false;
-    });
-
-    if (error == WiFiError.ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已连接到 $ssid')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('连接失败: ${error.message}')),
-      );
+    try {
+      await _wifiModule!.connectToNetwork(ssid, password: ''); // 已保存的网络使用空密码
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已连接到 $ssid')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('连接失败: $e')),
+        );
+      }
     }
   }
 
-  /// 断开当前网络连接
-  Future<void> _disconnectFromNetwork() async {
-    if (!_wifiStatus.connected) return;
 
-    setState(() {
-      _isConnecting = true;
-    });
-
-    final error = await _wifiService.disconnectFromNetwork();
-
-    setState(() {
-      _isConnecting = false;
-    });
-
-    if (error == WiFiError.ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('已断开连接')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('断开连接失败: ${error.message}')),
-      );
-    }
-  }
 
   Widget _sectionHeader(String title) {
     return Padding(
@@ -561,12 +522,6 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
             onPressed: _isScanning ? null : _loadStatusAndScan,
             tooltip: '刷新网络',
           ),
-          // if (_wifiStatus.connected)
-          //   IconButton(
-          //     icon: const Icon(Icons.wifi_off),
-          //     onPressed: (_isConnecting) ? null : _disconnectFromNetwork,
-          //     tooltip: '断开连接',
-          //   ),
         ],
       ),
       body: ListView(
@@ -677,7 +632,6 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                   .where((network) => network.recorded && network.ssid.isNotEmpty && network.ssid != r'\x00')
                   .map(
                     (network) => ListTile(
-                      // leading: const Icon(Icons.bookmark, color: Colors.green),
                       title: Text(network.ssid),
                       subtitle: Text('信号强度: ${network.signalPercentage}%'),
                       trailing: Wrap(
