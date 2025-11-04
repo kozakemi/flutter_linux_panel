@@ -80,9 +80,23 @@ class BrightnessModule extends WebSocketBaseModule {
     // 这里可以根据需要添加处理逻辑
     developer.log('亮度模块收到请求消息: ${request.type}', name: 'BrightnessModule');
     
-    // 返回一个默认的成功响应
+    // 返回一个默认的成功响应，类型按 BrightnessResponseTypes 与请求类型成对映射
+    String responseType;
+    switch (request.type) {
+      case BrightnessRequestTypes.getStatus:
+        responseType = BrightnessResponseTypes.status;
+        break;
+      case BrightnessRequestTypes.setBrightness:
+        responseType = BrightnessResponseTypes.set;
+        break;
+      case BrightnessRequestTypes.setAuto:
+        responseType = BrightnessResponseTypes.auto;
+        break;
+      default:
+        responseType = request.type; // 未识别类型，沿用原类型
+    }
     return WebSocketResponse(
-      type: '${request.type}_response',
+      type: responseType,
       requestId: request.requestId!,
       success: true,
       errorCode: 0,
@@ -136,16 +150,14 @@ class BrightnessModule extends WebSocketBaseModule {
       final request = BrightnessRequestBuilder.createGetStatusRequest();
       final response = await sendRequest(request);
       
-      if (response.success) {
-        final status = BrightnessResponseParser.parseStatusResponse(response);
-        if (status != null) {
-          _updateStatus(status);
-          return status;
-        }
-      } else {
-        final error = BrightnessResponseParser.parseError(response);
-        developer.log('获取亮度状态失败: ${error.message}', name: 'BrightnessModule');
+      final status = BrightnessResponseParser.parseStatusResponse(response);
+      if (status != null) {
+        _updateStatus(status);
+        return status;
       }
+
+      final error = BrightnessResponseParser.parseError(response);
+      developer.log('获取亮度状态失败: ${error.message}', name: 'BrightnessModule');
       
       return null;
     } catch (e, stackTrace) {
@@ -182,15 +194,15 @@ class BrightnessModule extends WebSocketBaseModule {
       );
       final response = await sendRequest(request);
       
-      if (response.success) {
-        // 设置成功后刷新状态
+      final ok = BrightnessResponseParser.parseSetResponse(response);
+      if (ok == true) {
         await getStatus();
         return true;
-      } else {
-        final error = BrightnessResponseParser.parseError(response);
-        developer.log('设置亮度失败: ${error.message}', name: 'BrightnessModule');
-        return false;
       }
+
+      final error = BrightnessResponseParser.parseError(response);
+      developer.log('设置亮度失败: ${error.message}', name: 'BrightnessModule');
+      return false;
     } catch (e, stackTrace) {
       developer.log(
         '设置亮度异常: $e',
@@ -214,15 +226,15 @@ class BrightnessModule extends WebSocketBaseModule {
       );
       final response = await sendRequest(request);
       
-      if (response.success) {
-        // 设置成功后刷新状态
+      final srvAuto = BrightnessResponseParser.parseAutoResponse(response);
+      if (srvAuto != null) {
         await getStatus();
         return true;
-      } else {
-        final error = BrightnessResponseParser.parseError(response);
-        developer.log('设置自动亮度失败: ${error.message}', name: 'BrightnessModule');
-        return false;
       }
+
+      final error = BrightnessResponseParser.parseError(response);
+      developer.log('设置自动亮度失败: ${error.message}', name: 'BrightnessModule');
+      return false;
     } catch (e, stackTrace) {
       developer.log(
         '设置自动亮度异常: $e',

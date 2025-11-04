@@ -5,6 +5,7 @@ class WebSocketConfig {
   // 默认使用本地地址进行开发测试，如果需要连接到实际服务器，可以修改这些值
   static const String serverHost = 'localhost';
   // static const String serverHost = '192.168.5.229';
+  // static const String serverHost = '172.20.10.2';
   static const int serverPort = 8080; // 使用不同的端口避免与Flutter开发服务器冲突
 
   static const Duration defaultReconnectInterval = Duration(seconds: 5);

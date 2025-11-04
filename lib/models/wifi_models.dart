@@ -342,6 +342,15 @@ class WiFiRequestTypes {
   static const String disconnect = 'wifi_disconnect_request';
 }
 
+/// WiFi 响应类型常量
+class WiFiResponseTypes {
+  static const String enable = 'wifi_enable_response';
+  static const String status = 'wifi_status_response';
+  static const String scan = 'wifi_scan_response';
+  static const String connect = 'wifi_connect_response';
+  static const String disconnect = 'wifi_disconnect_response';
+}
+
 /// WiFi 事件类型常量
 class WiFiEventTypes {
   static const String statusChanged = 'wifi_status_changed';
@@ -413,6 +422,10 @@ class WiFiRequestBuilder {
 class WiFiResponseParser {
   /// 解析WiFi状态响应
   static WiFiStatus? parseStatusResponse(WebSocketResponse response) {
+    // 校验类型
+    if (response.type != WiFiResponseTypes.status) {
+      return null;
+    }
     if (!response.success || response.data.isEmpty) {
       return null;
     }
@@ -422,11 +435,44 @@ class WiFiResponseParser {
 
   /// 解析扫描结果响应
   static WiFiScanResult? parseScanResponse(WebSocketResponse response) {
+    // 校验类型
+    if (response.type != WiFiResponseTypes.scan) {
+      return null;
+    }
     if (!response.success || response.data.isEmpty) {
       return null;
     }
 
     return WiFiScanResult.fromJson(response.data);
+  }
+
+  /// 解析启用/禁用响应，返回最终 enabled 值
+  static bool? parseEnableResponse(WebSocketResponse response) {
+    if (response.type != WiFiResponseTypes.enable) {
+      return null;
+    }
+    if (!response.success) {
+      return null;
+    }
+    final enabled =
+        (response.data['enable'] ?? response.data['enabled']) as bool?;
+    return enabled;
+  }
+
+  /// 解析连接响应，返回是否成功
+  static bool? parseConnectResponse(WebSocketResponse response) {
+    if (response.type != WiFiResponseTypes.connect) {
+      return null;
+    }
+    return response.success ? true : false;
+  }
+
+  /// 解析断开响应，返回是否成功
+  static bool? parseDisconnectResponse(WebSocketResponse response) {
+    if (response.type != WiFiResponseTypes.disconnect) {
+      return null;
+    }
+    return response.success ? true : false;
   }
 
   /// 解析错误信息

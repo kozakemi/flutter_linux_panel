@@ -149,6 +149,13 @@ class BrightnessRequestTypes {
   static const String setAuto = 'brightness_auto_request';
 }
 
+/// 亮度响应类型常量（与请求类型成对存在，紧随其后）
+class BrightnessResponseTypes {
+  static const String status = 'brightness_status_response';
+  static const String set = 'brightness_set_response';
+  static const String auto = 'brightness_auto_response';
+}
+
 /// 亮度事件类型常量
 class BrightnessEventTypes {
   static const String brightnessChanged = 'brightness_changed_event';
@@ -196,11 +203,36 @@ class BrightnessRequestBuilder {
 class BrightnessResponseParser {
   /// 解析亮度状态响应
   static BrightnessStatus? parseStatusResponse(WebSocketResponse response) {
+    // 校验类型
+    if (response.type != BrightnessResponseTypes.status) {
+      return null;
+    }
     if (!response.success || response.data.isEmpty) {
       return null;
     }
 
     return BrightnessStatus.fromJson(response.data);
+  }
+
+  /// 解析设置亮度响应，返回是否成功
+  static bool? parseSetResponse(WebSocketResponse response) {
+    if (response.type != BrightnessResponseTypes.set) {
+      return null;
+    }
+    return response.success ? true : false;
+  }
+
+  /// 解析自动亮度响应，返回自动亮度状态
+  static bool? parseAutoResponse(WebSocketResponse response) {
+    if (response.type != BrightnessResponseTypes.auto) {
+      return null;
+    }
+    if (!response.success) {
+      return null;
+    }
+    // API 文档字段为 auto_brightness；兼容旧字段 enabled
+    final enabled = (response.data['auto_brightness'] ?? response.data['enabled']) as bool?;
+    return enabled;
   }
 
   /// 解析错误信息

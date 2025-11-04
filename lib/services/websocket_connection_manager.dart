@@ -123,10 +123,11 @@ class WebSocketConnectionManager {
     if (connectionState != WebSocketConnectionState.connected) {
       throw WebSocketException('WebSocket未连接');
     }
-    
+
     final completer = Completer<WebSocketResponse>();
     _pendingRequests[request.requestId!] = completer;
-    
+    // 不在连接管理器进行类型校验，交由模块的解析器处理
+
     // 设置请求超时
     Timer(requestTimeout, () {
       if (_pendingRequests.containsKey(request.requestId!)) {
@@ -214,6 +215,12 @@ class WebSocketConnectionManager {
         _handleResponse(message);
       } else if (message is WebSocketEvent) {
         _handleEvent(message);
+      } else if (message is WebSocketRequest) {
+        // 服务器不应该向客户端发送 *_request 消息，记录并忽略
+        developer.log(
+          '警告: 收到服务器发来的请求消息(客户端不处理): ${message.type}',
+          name: 'ConnectionManager',
+        );
       }
       
       _messageController.add(message);
@@ -229,7 +236,9 @@ class WebSocketConnectionManager {
   
   /// 处理响应消息
   void _handleResponse(WebSocketResponse response) {
-    final completer = _pendingRequests.remove(response.requestId!);
+    final requestId = response.requestId!;
+    final completer = _pendingRequests.remove(requestId);
+
     if (completer != null && !completer.isCompleted) {
       completer.complete(response);
     }
