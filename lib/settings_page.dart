@@ -18,7 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'setting/wifi_page.dart';
 import 'setting/display_page.dart';
-import 'pages/websocket_test_page.dart';
+import 'setting/about_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -99,7 +99,8 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: ListView(
         children: [
-          _sectionHeader('网络与连接'),
+          const SizedBox(height: 24),
+          // _sectionHeader('网络与连接'),
           _section([
             ListTile(
               leading: _icon('source/app_ico/WLAN.svg'),
@@ -125,7 +126,7 @@ class _SettingsPageState extends State<SettingsPage> {
             // ),
           ]),
           const SizedBox(height: 24),
-          _sectionHeader('显示与声音'),
+          // _sectionHeader('显示与声音'),
           _section([
             ListTile(
               leading: _icon('source/app_ico/DisplayBrightness.svg'),
@@ -149,7 +150,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ]),
           const SizedBox(height: 24),
-          _sectionHeader('系统与输入'),
+          // _sectionHeader('系统与输入'),
           _section([
             ListTile(
               leading: _icon('source/app_ico/Battery.svg'),
@@ -163,6 +164,25 @@ class _SettingsPageState extends State<SettingsPage> {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _showNotImplemented('键盘设置'),
             ),
+          ]),
+
+          const SizedBox(height: 24),
+          // _sectionHeader(''),
+          _section([
+          ListTile(
+            leading: _icon('source/app_ico/about.svg'),
+            title: const Text('关于'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AboutPage()),
+            ),
+          ),
+          ListTile(
+            leading: _icon('source/app_ico/developer.svg'),
+            title: const Text('开发者'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => _showNotImplemented('开发者'),
+          ),
           ]),
           const SizedBox(height: 24),
         ],

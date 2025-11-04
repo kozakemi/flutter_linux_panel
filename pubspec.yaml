@@ -65,6 +65,7 @@ flutter:
     - source/background/
     - source/ico/
     - source/app_ico/
+    - source/txt/
     
   fonts:
     - family: HarmonyOS Sans

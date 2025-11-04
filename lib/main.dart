@@ -105,6 +105,7 @@ class _ClockScreenState extends State<ClockScreen>
 
   late Timer _timeTimer;
   late Timer _statusTimer;
+  Timer? _wifiPollTimer;
   StreamSubscription<WiFiStatus>? _wifiStatusSubscription;
 
   @override
@@ -143,7 +144,12 @@ class _ClockScreenState extends State<ClockScreen>
         }
       });
       // 获取一次初始状态
-      wifiModule.getStatus().catchError((_) {});
+      wifiModule.getStatus().catchError((_) => null);
+
+      // 在主页周期性轮询 WiFi 状态（每 10 秒）
+      _wifiPollTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+        wifiModule.getStatus().catchError((_) => null);
+      });
     }
   }
 
@@ -152,6 +158,8 @@ class _ClockScreenState extends State<ClockScreen>
     // 清理资源
     _timeTimer.cancel();
     _statusTimer.cancel();
+    // 取消 WiFi 轮询定时器
+    _wifiPollTimer?.cancel();
     _wifiStatusSubscription?.cancel();
     timeNotifier.dispose();
     wifiStatusNotifier.dispose();

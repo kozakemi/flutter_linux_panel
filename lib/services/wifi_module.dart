@@ -255,9 +255,26 @@ class WiFiModule extends WebSocketBaseModule {
       } else {
         final error = WiFiResponseParser.parseError(response);
         developer.log('获取WiFi状态失败: ${error.message}', name: 'WiFiModule');
+        // 若为超时错误，将WiFi视为关闭状态
+        if (error == WiFiError.timeout) {
+          const off = WiFiStatus(enabled: false, connected: false);
+          _updateStatus(off);
+          return off;
+        }
       }
 
       return null;
+    } on TimeoutException catch (e, stackTrace) {
+      // 捕获请求级别的超时，将WiFi视为关闭状态
+      developer.log(
+        '获取WiFi状态超时: $e',
+        name: 'WiFiModule',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      const off = WiFiStatus(enabled: false, connected: false);
+      _updateStatus(off);
+      return off;
     } catch (e, stackTrace) {
       developer.log(
         '获取WiFi状态异常: $e',

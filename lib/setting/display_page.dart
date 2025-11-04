@@ -247,9 +247,9 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                       Expanded(
                         child: Slider(
                           value: _brightnessStatus.percentage.toDouble(),
-                          min: 5,
+                          min: 0,
                           max: 100,
-                          divisions: 20,
+                          divisions: 30,
                           onChanged: _brightnessStatus.autoEnabled
                               ? null
                               : (value) {
@@ -427,47 +427,47 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                 ),
                 _sectionHeader('屏幕亮度'),
                 _buildBrightnessSection(),
-                _sectionHeader('预览'),
-                _buildPreviewSection(),
-                Container(
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue[200]!),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.info_outline,
-                              color: Colors.blue[600], size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            '使用说明',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
-                              color: Colors.blue[800],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '• 调整界面缩放比例以适应不同的屏幕尺寸\n'
-                        '• 设置会自动保存并在下次启动时生效\n'
-                        '• 建议根据屏幕大小选择合适的缩放比例',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.blue[700],
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                // _sectionHeader('预览'),
+                // _buildPreviewSection(),
+                // Container(
+                //   margin: const EdgeInsets.all(16),
+                //   padding: const EdgeInsets.all(16),
+                //   decoration: BoxDecoration(
+                //     color: Colors.blue[50],
+                //     borderRadius: BorderRadius.circular(8),
+                //     border: Border.all(color: Colors.blue[200]!),
+                //   ),
+                //   child: Column(
+                //     crossAxisAlignment: CrossAxisAlignment.start,
+                //     children: [
+                //       Row(
+                //         children: [
+                //           Icon(Icons.info_outline,
+                //               color: Colors.blue[600], size: 20),
+                //           const SizedBox(width: 8),
+                //           Text(
+                //             '使用说明',
+                //             style: TextStyle(
+                //               fontWeight: FontWeight.w500,
+                //               color: Colors.blue[800],
+                //             ),
+                //           ),
+                //         ],
+                //       ),
+                //       const SizedBox(height: 8),
+                //       Text(
+                //         '• 调整界面缩放比例以适应不同的屏幕尺寸\n'
+                //         '• 设置会自动保存并在下次启动时生效\n'
+                //         '• 建议根据屏幕大小选择合适的缩放比例',
+                //         style: TextStyle(
+                //           fontSize: 12,
+                //           color: Colors.blue[700],
+                //           height: 1.4,
+                //         ),
+                //       ),
+                //     ],
+                //   ),
+                // ),
               ],
             ),
     );
