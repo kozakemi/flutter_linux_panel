@@ -17,6 +17,7 @@ limitations under the License.
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'about/software_info.dart';
+import 'about/device_info.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
@@ -56,6 +57,13 @@ class _AboutPageState extends State<AboutPage> {
                   children: ListTile.divideTiles(
                     context: context,
                     tiles: [
+                      ListTile(
+                        title: const Text('设备信息'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const DeviceInfoPage()),
+                        ),
+                      ),
                       ListTile(
                         title: const Text('软件信息'),
                         trailing: const Icon(Icons.chevron_right),
