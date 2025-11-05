@@ -20,7 +20,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'settings_page.dart';
 import 'calendar_page.dart';
-import 'cloud_page.dart';
+import 'launchpad_page.dart';
 import 'loading_page.dart';
 import 'global_tap_ripple.dart';
 import 'services/display_service.dart';
