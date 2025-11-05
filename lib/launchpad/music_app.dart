@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:flutter_soloud/flutter_soloud.dart';
 import 'fs/music_fs.dart';
 
 class MusicAppPage extends StatefulWidget {
@@ -12,8 +12,9 @@ class MusicAppPage extends StatefulWidget {
 
 class _MusicAppPageState extends State<MusicAppPage> {
   static const String musicDirPath = '/mnt/tfcard/music';
-
-  final AudioPlayer _player = AudioPlayer();
+  final SoLoud _soloud = SoLoud.instance;
+  final List<AudioSource> _sources = [];
+  SoundHandle? _currentHandle;
   final List<String> _tracks = [];
   bool _loading = true;
   String? _error;
@@ -27,12 +28,16 @@ class _MusicAppPageState extends State<MusicAppPage> {
 
   Future<void> _init() async {
     try {
+      if (!_soloud.isInitialized) {
+        await _soloud.init();
+      }
       final entries = await scanAudioFiles(musicDirPath, _isAudioFile);
 
       setState(() {
         _tracks
           ..clear()
           ..addAll(entries);
+        _sources.clear();
         _loading = false;
         _error = _tracks.isEmpty ? '未在 $musicDirPath 找到音频文件' : null;
       });
@@ -58,14 +63,24 @@ class _MusicAppPageState extends State<MusicAppPage> {
     if (index < 0 || index >= _tracks.length) return;
 
     try {
-      // 构建播放列表并跳转到指定索引
-      final sources = _tracks
-          .map((p) => AudioSource.uri(Uri.file(p)))
-          .toList(growable: false);
-      await _player.setAudioSource(ConcatenatingAudioSource(children: sources), initialIndex: index);
-      await _player.play();
+      // 释放之前的句柄
+      if (_currentHandle != null) {
+        await _soloud.stop(_currentHandle!);
+        _currentHandle = null;
+      }
+
+      // 懒加载并缓存 AudioSource
+      if (_sources.length != _tracks.length) {
+        _sources
+          ..clear()
+          ..addAll(await Future.wait(_tracks.map((p) => _soloud.loadFile(p))));
+      }
+
+      final src = _sources[index];
+      final handle = await _soloud.play(src);
       setState(() {
         _currentIndex = index;
+        _currentHandle = handle;
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -76,7 +91,13 @@ class _MusicAppPageState extends State<MusicAppPage> {
 
   @override
   void dispose() {
-    _player.dispose();
+    // 停止当前播放并释放资源
+    if (_currentHandle != null) {
+      _soloud.stop(_currentHandle!);
+      _currentHandle = null;
+    }
+    _soloud.disposeAllSources();
+    _soloud.deinit();
     super.dispose();
   }
 
@@ -149,7 +170,10 @@ class _MusicAppPageState extends State<MusicAppPage> {
                     tiles: List.generate(_tracks.length, (i) {
                       final path = _tracks[i];
                       final name = path.split('/').last;
-                      final playing = _currentIndex == i && _player.playing;
+                      final playing = _currentIndex == i &&
+                          _currentHandle != null &&
+                          _soloud.getIsValidVoiceHandle(_currentHandle!) &&
+                          !_soloud.getPause(_currentHandle!);
                       return ListTile(
                         leading: Icon(
                           playing ? Icons.equalizer : Icons.music_note,
@@ -186,21 +210,29 @@ class _MusicAppPageState extends State<MusicAppPage> {
             tooltip: '上一曲',
             onPressed: () async {
               try {
-                await _player.seekToPrevious();
+                if (_tracks.isEmpty) return;
+                final next = (_currentIndex == null) ? 0 : (_currentIndex! - 1 + _tracks.length) % _tracks.length;
+                await _playAt(next);
               } catch (_) {}
             },
           ),
           IconButton(
-            icon: Icon(_player.playing ? Icons.pause_circle_filled : Icons.play_circle_fill),
+            icon: Icon((_currentHandle != null && !_soloud.getPause(_currentHandle!))
+                ? Icons.pause_circle_filled
+                : Icons.play_circle_fill),
             iconSize: 36,
             color: Colors.blue,
-            tooltip: _player.playing ? '暂停' : '播放',
+            tooltip: (_currentHandle != null && !_soloud.getPause(_currentHandle!)) ? '暂停' : '播放',
             onPressed: () async {
               try {
-                if (_player.playing) {
-                  await _player.pause();
+                if (_currentHandle == null) {
+                  // 如果没有当前播放，播放当前索引或第一首
+                  final idx = _currentIndex ?? 0;
+                  await _playAt(idx);
                 } else {
-                  await _player.play();
+                  // 切换暂停/继续
+                  final paused = _soloud.getPause(_currentHandle!);
+                  _soloud.setPause(_currentHandle!, !paused);
                 }
                 setState(() {});
               } catch (e) {
@@ -215,7 +247,10 @@ class _MusicAppPageState extends State<MusicAppPage> {
             tooltip: '停止',
             onPressed: () async {
               try {
-                await _player.stop();
+                if (_currentHandle != null) {
+                  await _soloud.stop(_currentHandle!);
+                  _currentHandle = null;
+                }
                 setState(() {});
               } catch (_) {}
             },
@@ -225,7 +260,9 @@ class _MusicAppPageState extends State<MusicAppPage> {
             tooltip: '下一曲',
             onPressed: () async {
               try {
-                await _player.seekToNext();
+                if (_tracks.isEmpty) return;
+                final next = (_currentIndex == null) ? 0 : (_currentIndex! + 1) % _tracks.length;
+                await _playAt(next);
               } catch (_) {}
             },
           ),
