@@ -1,7 +1,14 @@
+import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'widgets/spinning_player.dart';
+import 'audio_cover.dart';
 import 'fs/music_fs.dart';
+import 'widgets/waveform_painter.dart';
+import 'widgets/spectrum_painter.dart';
 
 class MusicAppPage extends StatefulWidget {
   const MusicAppPage({super.key});
@@ -12,6 +19,7 @@ class MusicAppPage extends StatefulWidget {
 
 class _MusicAppPageState extends State<MusicAppPage> {
   static const String musicDirPath = '/mnt/tfcard/music';
+  // static const String musicDirPath = '/home/tspi/音乐';
   final SoLoud _soloud = SoLoud.instance;
   final List<AudioSource> _sources = [];
   SoundHandle? _currentHandle;
@@ -19,17 +27,34 @@ class _MusicAppPageState extends State<MusicAppPage> {
   bool _loading = true;
   String? _error;
   int? _currentIndex;
+  Timer? _posTimer;
+  Timer? _vizTimer;
+  List<double> _vizSamples = const [];
+  List<double> _vizFft = const [];
+  static const double _smoothAlpha = 0.35;
 
   @override
   void initState() {
     super.initState();
     _init();
+    _posTimer = Timer.periodic(const Duration(milliseconds: 500), (t) {
+      if (_currentHandle != null &&
+          _soloud.getIsValidVoiceHandle(_currentHandle!)) {
+        setState(() {});
+      }
+    });
+    _vizTimer = Timer.periodic(const Duration(milliseconds: 60), (t) {
+      if (_isPlaying()) {
+        _updateVisualizationSamples();
+      }
+    });
   }
 
   Future<void> _init() async {
     try {
       if (!_soloud.isInitialized) {
         await _soloud.init();
+        _soloud.setVisualizationEnabled(true);
       }
       final entries = await scanAudioFiles(musicDirPath, _isAudioFile);
 
@@ -98,6 +123,8 @@ class _MusicAppPageState extends State<MusicAppPage> {
     }
     _soloud.disposeAllSources();
     _soloud.deinit();
+    _posTimer?.cancel();
+    _vizTimer?.cancel();
     super.dispose();
   }
 
@@ -118,14 +145,16 @@ class _MusicAppPageState extends State<MusicAppPage> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: '重新扫描',
-            onPressed: _loading ? null : () async {
-              setState(() {
-                _loading = true;
-                _error = null;
-                _tracks.clear();
-              });
-              await _init();
-            },
+            onPressed: _loading
+                ? null
+                : () async {
+                    setState(() {
+                      _loading = true;
+                      _error = null;
+                      _tracks.clear();
+                    });
+                    await _init();
+                  },
           ),
         ],
       ),
@@ -138,36 +167,333 @@ class _MusicAppPageState extends State<MusicAppPage> {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    return ListView(
+    final playing = _currentHandle != null &&
+        _soloud.getIsValidVoiceHandle(_currentHandle!) &&
+        !_soloud.getPause(_currentHandle!);
+    final bgTrack = (_currentIndex != null && _tracks.isNotEmpty)
+        ? _tracks[_currentIndex!]
+        : (_tracks.isNotEmpty ? _tracks.first : null);
+    return Stack(
       children: [
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Material(
-            color: Colors.white,
-            surfaceTintColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: [
-                ListTile(
-                  title: const Text('音乐目录'),
-                  subtitle: Text(musicDirPath),
-                ),
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(color: Colors.redAccent),
+        Positioned.fill(
+          child: FutureBuilder(
+            future: bgTrack == null
+                ? Future.value(null)
+                : readEmbeddedCover(bgTrack),
+            builder: (context, snapshot) {
+              final coverBytes = snapshot.data;
+              if (coverBytes != null) {
+                return Image.memory(
+                  coverBytes,
+                  fit: BoxFit.cover,
+                );
+              }
+              return Image.asset(
+                'source/background/b8d50820181ef8bbb8514e6813281294.jpg',
+                fit: BoxFit.cover,
+              );
+            },
+          ),
+        ),
+        Positioned.fill(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(color: const Color(0x33000000)),
+          ),
+        ),
+        Stack(
+          children: [
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 72,
+              height: MediaQuery.of(context).size.height * 0.16,
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _isPlaying() ? 1.0 : (_isPaused() ? 0.0 : 0.0),
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  child: CustomPaint(
+                    painter: SpectrumPainter(
+                      fft: _vizFft.isNotEmpty
+                          ? _vizFft
+                          : List<double>.filled(256, 0.0),
+                      color: Colors.white.withOpacity(0.6),
+                      bins: 64,
                     ),
                   ),
-                if (_tracks.isNotEmpty)
-                  ...ListTile.divideTiles(
-                    context: context,
-                    tiles: List.generate(_tracks.length, (i) {
+                ),
+              ),
+            ),
+            ListView(
+              children: [
+                const SizedBox(height: 24),
+                Center(
+                  child: SpinningPlayer(
+                    playing: playing,
+                    trackPath: (_currentIndex != null && _tracks.isNotEmpty)
+                        ? _tracks[_currentIndex!]
+                        : (_tracks.isNotEmpty ? _tracks.first : null),
+                    size: MediaQuery.of(context).size.shortestSide * 0.6,
+                    cover: SvgPicture.asset(
+                      'source/app_ico/Music.svg',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _two(int n) => n.toString().padLeft(2, '0');
+  String _formatTime(Duration d) {
+    final m = d.inMinutes;
+    final s = d.inSeconds % 60;
+    return '${_two(m)}:${_two(s)}';
+  }
+
+  List<double> _lastSamples = const [];
+  List<double> _getWaveSamples() {
+    try {
+      if (_currentHandle != null &&
+          _soloud.getIsValidVoiceHandle(_currentHandle!)) {
+        final audioData = AudioData(GetSamplesKind.wave);
+        audioData.updateSamples();
+        final samples = audioData.getAudioData(
+          alwaysReturnData: false,
+        );
+        audioData.dispose();
+        if (samples != null && samples.isNotEmpty) {
+          _lastSamples = samples;
+        }
+      }
+    } catch (_) {}
+    return _lastSamples.isNotEmpty
+        ? _lastSamples
+        : List<double>.filled(256, 0.0);
+  }
+
+  void _updateVisualizationSamples() {
+    try {
+      final audioData = AudioData(GetSamplesKind.linear);
+      audioData.updateSamples();
+      final linear = audioData.getAudioData(alwaysReturnData: false);
+      audioData.dispose();
+      if (linear != null && linear.isNotEmpty) {
+        final half = (linear.length / 2).floor();
+        final fft = linear.sublist(0, half);
+        final wave = linear.sublist(half);
+        if (_vizFft.isEmpty) {
+          _vizFft = fft;
+          _vizSamples = wave;
+        } else {
+          final lenF = fft.length;
+          final outF = List<double>.filled(lenF, 0.0);
+          for (int i = 0; i < lenF; i++) {
+            outF[i] = _smoothAlpha * fft[i] + (1 - _smoothAlpha) * _vizFft[i];
+          }
+          _vizFft = outF;
+
+          final lenW = wave.length;
+          final outW = List<double>.filled(lenW, 0.0);
+          for (int i = 0; i < lenW; i++) {
+            outW[i] =
+                _smoothAlpha * wave[i] + (1 - _smoothAlpha) * _vizSamples[i];
+          }
+          _vizSamples = outW;
+        }
+        if (mounted) setState(() {});
+      }
+    } catch (_) {}
+  }
+
+  bool _isPlaying() {
+    return _currentHandle != null &&
+        _soloud.getIsValidVoiceHandle(_currentHandle!) &&
+        !_soloud.getPause(_currentHandle!);
+  }
+
+  bool _isPaused() {
+    return _currentHandle != null &&
+        _soloud.getIsValidVoiceHandle(_currentHandle!) &&
+        _soloud.getPause(_currentHandle!);
+  }
+
+  Widget? _buildControls(BuildContext context) {
+    if (kIsWeb) {
+      return null;
+    }
+    final totalMs = (_currentIndex != null && _sources.length == _tracks.length)
+        ? _soloud.getLength(_sources[_currentIndex!]).inMilliseconds
+        : 0;
+    final posMs = (_currentHandle != null &&
+            _soloud.getIsValidVoiceHandle(_currentHandle!))
+        ? _soloud.getPosition(_currentHandle!).inMilliseconds
+        : 0;
+    final clampedPos = posMs.clamp(0, totalMs);
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (totalMs > 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Column(
+                children: [
+                  Slider(
+                    min: 0,
+                    max: totalMs.toDouble(),
+                    value: clampedPos.toDouble(),
+                    onChanged: (v) {
+                      setState(() {});
+                    },
+                    onChangeEnd: (v) {
+                      try {
+                        if (_currentHandle != null) {
+                          _soloud.seek(_currentHandle!,
+                              Duration(milliseconds: v.toInt()));
+                          setState(() {});
+                        }
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('拖动失败：$e')),
+                        );
+                      }
+                    },
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(_formatTime(Duration(milliseconds: clampedPos))),
+                      Text(
+                          '-${_formatTime(Duration(milliseconds: (totalMs - clampedPos).clamp(0, totalMs)))}'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.skip_previous),
+                tooltip: '上一曲',
+                onPressed: () async {
+                  try {
+                    if (_tracks.isEmpty) return;
+                    final next = (_currentIndex == null)
+                        ? 0
+                        : (_currentIndex! - 1 + _tracks.length) %
+                            _tracks.length;
+                    await _playAt(next);
+                  } catch (_) {}
+                },
+              ),
+              IconButton(
+                icon: Icon((_currentHandle != null &&
+                        !_soloud.getPause(_currentHandle!))
+                    ? Icons.pause_circle_filled
+                    : Icons.play_circle_fill),
+                iconSize: 36,
+                color: Colors.blue,
+                tooltip: (_currentHandle != null &&
+                        !_soloud.getPause(_currentHandle!))
+                    ? '暂停'
+                    : '播放',
+                onPressed: () async {
+                  try {
+                    if (_currentHandle == null) {
+                      // 如果没有当前播放，播放当前索引或第一首
+                      final idx = _currentIndex ?? 0;
+                      await _playAt(idx);
+                    } else {
+                      // 切换暂停/继续
+                      final paused = _soloud.getPause(_currentHandle!);
+                      _soloud.setPause(_currentHandle!, !paused);
+                    }
+                    setState(() {});
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('操作失败：$e')),
+                    );
+                  }
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.stop_circle),
+                tooltip: '停止',
+                onPressed: () async {
+                  try {
+                    if (_currentHandle != null) {
+                      await _soloud.stop(_currentHandle!);
+                      _currentHandle = null;
+                    }
+                    setState(() {});
+                  } catch (_) {}
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.skip_next),
+                tooltip: '下一曲',
+                onPressed: () async {
+                  try {
+                    if (_tracks.isEmpty) return;
+                    final next = (_currentIndex == null)
+                        ? 0
+                        : (_currentIndex! + 1) % _tracks.length;
+                    await _playAt(next);
+                  } catch (_) {}
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.queue_music),
+                tooltip: '播放列表',
+                onPressed: () {
+                  _showPlaylistBottomSheet();
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPlaylistBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  height: 4,
+                  width: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text('播放列表'),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _tracks.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
                       final path = _tracks[i];
                       final name = path.split('/').last;
                       final playing = _currentIndex == i &&
@@ -175,99 +501,37 @@ class _MusicAppPageState extends State<MusicAppPage> {
                           _soloud.getIsValidVoiceHandle(_currentHandle!) &&
                           !_soloud.getPause(_currentHandle!);
                       return ListTile(
-                        leading: Icon(
-                          playing ? Icons.equalizer : Icons.music_note,
-                          color: playing ? Colors.green : Colors.blue,
+                        leading: FutureBuilder(
+                          future: readEmbeddedCover(path),
+                          builder: (context, snapshot) {
+                            final bytes = snapshot.data;
+                            if (bytes != null) {
+                              return CircleAvatar(
+                                backgroundImage: MemoryImage(bytes),
+                                radius: 18,
+                              );
+                            }
+                            return const CircleAvatar(
+                              child: Icon(Icons.music_note),
+                              radius: 18,
+                            );
+                          },
                         ),
                         title: Text(name),
-                        subtitle: Text(path),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: kIsWeb ? null : () => _playAt(i),
+                        trailing: playing ? const Icon(Icons.equalizer) : null,
+                        onTap: () async {
+                          await _playAt(i);
+                          Navigator.of(ctx).pop();
+                        },
                       );
-                    }),
-                  ).toList(),
+                    },
+                  ),
+                ),
               ],
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-      ],
-    );
-  }
-
-  Widget? _buildControls(BuildContext context) {
-    if (kIsWeb) {
-      return null;
-    }
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.skip_previous),
-            tooltip: '上一曲',
-            onPressed: () async {
-              try {
-                if (_tracks.isEmpty) return;
-                final next = (_currentIndex == null) ? 0 : (_currentIndex! - 1 + _tracks.length) % _tracks.length;
-                await _playAt(next);
-              } catch (_) {}
-            },
-          ),
-          IconButton(
-            icon: Icon((_currentHandle != null && !_soloud.getPause(_currentHandle!))
-                ? Icons.pause_circle_filled
-                : Icons.play_circle_fill),
-            iconSize: 36,
-            color: Colors.blue,
-            tooltip: (_currentHandle != null && !_soloud.getPause(_currentHandle!)) ? '暂停' : '播放',
-            onPressed: () async {
-              try {
-                if (_currentHandle == null) {
-                  // 如果没有当前播放，播放当前索引或第一首
-                  final idx = _currentIndex ?? 0;
-                  await _playAt(idx);
-                } else {
-                  // 切换暂停/继续
-                  final paused = _soloud.getPause(_currentHandle!);
-                  _soloud.setPause(_currentHandle!, !paused);
-                }
-                setState(() {});
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('操作失败：$e')),
-                );
-              }
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.stop_circle),
-            tooltip: '停止',
-            onPressed: () async {
-              try {
-                if (_currentHandle != null) {
-                  await _soloud.stop(_currentHandle!);
-                  _currentHandle = null;
-                }
-                setState(() {});
-              } catch (_) {}
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.skip_next),
-            tooltip: '下一曲',
-            onPressed: () async {
-              try {
-                if (_tracks.isEmpty) return;
-                final next = (_currentIndex == null) ? 0 : (_currentIndex! + 1) % _tracks.length;
-                await _playAt(next);
-              } catch (_) {}
-            },
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
