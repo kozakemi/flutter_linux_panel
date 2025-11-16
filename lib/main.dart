@@ -631,7 +631,7 @@ class SideTabBar extends StatelessWidget {
               case 2:
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const CloudPage()),
+                  MaterialPageRoute(builder: (context) => const LaunchpadPage()),
                 );
                 break;
               case 3:

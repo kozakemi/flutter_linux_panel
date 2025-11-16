@@ -15,13 +15,108 @@ limitations under the License.
 */
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'launchpad/music_app.dart';
 
-class CloudPage extends StatelessWidget {
-  const CloudPage({super.key});
+/**
+ * 图标组件
+ * 上部图片 下部居中图标名称
+ */
+class IconItem extends StatelessWidget {
+  final String iconPath; // 改为String类型存储SVG路径
+  final String label;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  const IconItem({
+    Key? key,
+    required this.iconPath,
+    required this.label,
+    this.onTap,
+    this.onLongPress,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      borderRadius: BorderRadius.circular(8),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // 使用 SvgPicture 显示 SVG 图标
+          SvgPicture.asset(
+            iconPath,
+            width: 48,
+            height: 48,
+            // colorFilter: const ColorFilter.mode(
+            //   Colors.blue,
+            //   BlendMode.srcIn,
+            // ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.black87,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LaunchpadPage extends StatelessWidget {
+  const LaunchpadPage({Key? key}) : super(key: key);
+
+  // 定义SVG图标路径（使用String类型）
+  final List<String> iconPaths = const [
+    'source/app_ico/FilesandFolders.svg',
+    'source/app_ico/Music.svg',
+    'source/app_ico/video-02-1.svg',
+  ];
+
+  final List<String> labels = const [
+    '文件管理器',
+    '音乐播放器',
+    '视频播放器',
+  ];
+
+  List<VoidCallback> getOnTapCallbacks(BuildContext context) {
+    return [
+      () => {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('文件管理器暂未实现')),
+            )
+          },
+      () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const MusicAppPage()),
+          ),
+      () => {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('视频播放器暂未实现')),
+            )
+          },
+    ];
+  }
+
+  List<VoidCallback> getOnLongPressCallbacks(BuildContext context) {
+    return [
+      () => {},
+      () => {},
+      () => {},
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onTapCallbacks = getOnTapCallbacks(context);
+    final onLongPressCallbacks = getOnLongPressCallbacks(context);
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
@@ -34,47 +129,25 @@ class CloudPage extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: ListView(
-        children: [
-          const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Material(
-              color: Colors.white,
-              surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                children: ListTile.divideTiles(
-                  context: context,
-                  tiles: [
-                    ListTile(
-                      leading: const Icon(Icons.music_note, color: Colors.blue),
-                      title: const Text('音乐'),
-                      subtitle: const Text('/mnt/tfcard/music'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const MusicAppPage()),
-                      ),
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.cloud, color: Colors.indigo),
-                      title: const Text('云服务'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('云服务功能暂未实现')), 
-                        );
-                      },
-                    ),
-                  ],
-                ).toList(),
-              ),
-            ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4, // 每行显示4个
+            mainAxisSpacing: 20, // 垂直间距
+            crossAxisSpacing: 20, // 水平间距
+            childAspectRatio: 0.8, // 宽高比
           ),
-        ],
+          itemCount: iconPaths.length,
+          itemBuilder: (context, index) {
+            return IconItem(
+              iconPath: iconPaths[index],
+              label: labels[index],
+              onTap: onTapCallbacks[index], // 从列表中获取回调
+              onLongPress: onLongPressCallbacks[index], // 从列表中获取回调
+            );
+          },
+        ),
       ),
     );
   }

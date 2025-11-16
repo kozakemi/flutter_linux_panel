@@ -42,6 +42,8 @@ fluter_linux_panel — 许可与致谢
   - `virtual_keyboard_multi_language` `^1.1.2`
   - `web_socket_channel` `^2.4.0`
   - `shared_preferences` `^2.2.2`
+  - `flutter_soloud: ^3.4.1`
+  - `fvp: ^0.35.0`
   - `cupertino_icons` `^1.0.8`
 
 - 开发依赖（dev_dependencies）
@@ -63,6 +65,8 @@ fluter_linux_panel — 许可与致谢
   - `virtual_keyboard_multi_language` `^1.1.2` — 许可证：MIT — 来源：https://pub.dev/packages/virtual_keyboard_multi_language/license
   - `web_socket_channel` `^2.4.0` — 许可证：BSD-3-Clause — 来源：https://pub.dev/packages/web_socket_channel/license
   - `shared_preferences` `^2.2.2` — 许可证：BSD-3-Clause — 来源：https://pub.dev/packages/shared_preferences/license
+  - `flutter_soloud` `^3.4.1` — 许可证：MIT — 来源：https://pub.dev/packages/flutter_soloud/license
+  - `fvp` `^0.35.0` — 许可证：MIT — 来源：https://pub.dev/packages/fvp/license
   - `cupertino_icons` `^1.0.8` — 许可证：MIT — 来源：https://pub.dev/packages/cupertino_icons/license
 
 - 开发依赖（dev_dependencies）
