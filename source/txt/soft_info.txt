@@ -1,1 +1,1 @@
-/home/tspi/fluter_linux_panel/NOTICE
+../../NOTICE

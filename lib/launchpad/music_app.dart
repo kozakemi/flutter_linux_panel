@@ -33,6 +33,8 @@ class _MusicAppPageState extends State<MusicAppPage> {
   List<double> _vizSamples = const [];
   List<double> _vizFft = const [];
   static const double _smoothAlpha = 0.35;
+  final GlobalKey _controlsKey = GlobalKey();
+  double _controlsHeight = 0;
 
   @override
   void initState() {
@@ -131,6 +133,16 @@ class _MusicAppPageState extends State<MusicAppPage> {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final h = _controlsKey.currentContext?.size?.height ?? 0;
+      if (h != _controlsHeight) {
+        if (mounted) {
+          setState(() {
+            _controlsHeight = h;
+          });
+        }
+      }
+    });
     final scale = DisplayService.instance.scaleFactor;
     final iconSize = 24.0 * scale;
     final toolbarHeight = 56.0 * scale;
@@ -205,35 +217,10 @@ class _MusicAppPageState extends State<MusicAppPage> {
           ),
         ),
         Positioned.fill(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-            child: Container(color: const Color(0x33000000)),
-          ),
+          child: Container(color: const Color(0x33000000)),
         ),
         Stack(
           children: [
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 72,
-              height: MediaQuery.of(context).size.height * 0.16,
-              child: IgnorePointer(
-                child: AnimatedOpacity(
-                  opacity: _isPlaying() ? 1.0 : (_isPaused() ? 0.0 : 0.0),
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOut,
-                  child: CustomPaint(
-                    painter: SpectrumPainter(
-                      fft: _vizFft.isNotEmpty
-                          ? _vizFft
-                          : List<double>.filled(256, 0.0),
-                      color: Colors.white.withOpacity(0.6),
-                      bins: 64,
-                    ),
-                  ),
-                ),
-              ),
-            ),
             ListView(
               children: [
                 const SizedBox(height: 24),
@@ -253,6 +240,28 @@ class _MusicAppPageState extends State<MusicAppPage> {
                 const SizedBox(height: 12),
                 const SizedBox(height: 16),
               ],
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: _controlsHeight,
+              height: MediaQuery.of(context).size.height * 0.16,
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: 1.0,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  child: CustomPaint(
+                    painter: SpectrumPainter(
+                      fft: _vizFft.isNotEmpty
+                          ? _vizFft
+                          : List<double>.filled(256, 0.0),
+                      color: Colors.white.withOpacity(0.6),
+                      bins: 16,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -349,46 +358,53 @@ class _MusicAppPageState extends State<MusicAppPage> {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      key: _controlsKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (totalMs > 0)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Column(
-                children: [
-                  Slider(
-                    min: 0,
-                    max: totalMs.toDouble(),
-                    value: clampedPos.toDouble(),
-                    onChanged: (v) {
-                      setState(() {});
-                    },
-                    onChangeEnd: (v) {
-                      try {
-                        if (_currentHandle != null) {
-                          _soloud.seek(_currentHandle!,
-                              Duration(milliseconds: v.toInt()));
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Column(
+              children: [
+                Slider(
+                  min: 0,
+                  max: totalMs > 0 ? totalMs.toDouble() : 1.0,
+                  value: (totalMs > 0
+                          ? clampedPos.toDouble()
+                          : 0.0)
+                      .clamp(0.0, totalMs > 0 ? totalMs.toDouble() : 1.0),
+                  onChanged: totalMs > 0
+                      ? (v) {
                           setState(() {});
                         }
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('拖动失败：$e')),
-                        );
-                      }
-                    },
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(_formatTime(Duration(milliseconds: clampedPos))),
-                      Text(
-                          '-${_formatTime(Duration(milliseconds: (totalMs - clampedPos).clamp(0, totalMs)))}'),
-                    ],
-                  ),
-                ],
-              ),
+                      : null,
+                  onChangeEnd: totalMs > 0
+                      ? (v) {
+                          try {
+                            if (_currentHandle != null) {
+                              _soloud.seek(_currentHandle!,
+                                  Duration(milliseconds: v.toInt()));
+                              setState(() {});
+                            }
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('拖动失败：$e')),
+                            );
+                          }
+                        }
+                      : null,
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(_formatTime(Duration(milliseconds: clampedPos))),
+                    Text(
+                        '-${_formatTime(Duration(milliseconds: (totalMs - clampedPos).clamp(0, totalMs)))}'),
+                  ],
+                ),
+              ],
             ),
+          ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
