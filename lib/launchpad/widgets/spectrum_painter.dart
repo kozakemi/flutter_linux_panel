@@ -16,7 +16,7 @@ class SpectrumPainter extends CustomPainter {
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.fill
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+      ;
 
     for (int i = 0; i < barCount; i++) {
       final start = (i * fft.length / barCount).floor();

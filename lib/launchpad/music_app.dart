@@ -204,14 +204,20 @@ class _MusicAppPageState extends State<MusicAppPage> {
             builder: (context, snapshot) {
               final coverBytes = snapshot.data;
               if (coverBytes != null) {
-                return Image.memory(
-                  coverBytes,
-                  fit: BoxFit.cover,
+                return ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: Image.memory(
+                    coverBytes,
+                    fit: BoxFit.cover,
+                  ),
                 );
               }
-              return Image.asset(
-                'source/background/b8d50820181ef8bbb8514e6813281294.jpg',
-                fit: BoxFit.cover,
+              return ImageFiltered(
+                imageFilter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: Image.asset(
+                  'source/background/b8d50820181ef8bbb8514e6813281294.jpg',
+                  fit: BoxFit.cover,
+                ),
               );
             },
           ),
@@ -244,7 +250,7 @@ class _MusicAppPageState extends State<MusicAppPage> {
             Positioned(
               left: 0,
               right: 0,
-              bottom: _controlsHeight,
+              bottom: 0,
               height: MediaQuery.of(context).size.height * 0.16,
               child: IgnorePointer(
                 child: AnimatedOpacity(
@@ -256,7 +262,7 @@ class _MusicAppPageState extends State<MusicAppPage> {
                       fft: _vizFft.isNotEmpty
                           ? _vizFft
                           : List<double>.filled(256, 0.0),
-                      color: Colors.white.withOpacity(0.6),
+                      color: Colors.white.withOpacity(0.9),
                       bins: 16,
                     ),
                   ),
@@ -369,9 +375,7 @@ class _MusicAppPageState extends State<MusicAppPage> {
                 Slider(
                   min: 0,
                   max: totalMs > 0 ? totalMs.toDouble() : 1.0,
-                  value: (totalMs > 0
-                          ? clampedPos.toDouble()
-                          : 0.0)
+                  value: (totalMs > 0 ? clampedPos.toDouble() : 0.0)
                       .clamp(0.0, totalMs > 0 ? totalMs.toDouble() : 1.0),
                   onChanged: totalMs > 0
                       ? (v) {

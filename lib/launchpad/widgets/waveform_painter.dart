@@ -13,17 +13,16 @@ class WaveformPainter extends CustomPainter {
     final paint = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+      ..strokeWidth = 2.0;
 
     final path = Path();
     final midY = size.height / 2;
     final len = samples.length;
     for (int i = 0; i < len; i++) {
-      final x = i * size.width / (len - 1);
+      final x = (i * size.width / (len - 1)).roundToDouble();
       // Clamp amplitude, scale to 80% of half-height to avoid clipping
       final amp = (samples[i]).clamp(-1.0, 1.0) as double;
-      final y = midY - amp * (size.height * 0.4);
+      final y = (midY - amp * (size.height * 0.4)).roundToDouble();
       if (i == 0) {
         path.moveTo(x, y);
       } else {
