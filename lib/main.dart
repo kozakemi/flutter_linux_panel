@@ -229,19 +229,19 @@ class _ClockScreenState extends State<ClockScreen>
             ),
 
             // 底部梯形和日期时间组合组件
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: sidePanelWidth,
-          height: screenHeight * 0.3,
-          // 使用独立组件，只在时间变化时更新
-          child: DateTimeComponent(
-            screenWidth: screenWidth,
-            screenHeight: screenHeight,
-            sidePanelWidth: sidePanelWidth,
-            timeNotifier: timeNotifier,
-          ),
-        ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: sidePanelWidth,
+              height: screenHeight * 0.3,
+              // 使用独立组件，只在时间变化时更新
+              child: DateTimeComponent(
+                screenWidth: screenWidth,
+                screenHeight: screenHeight,
+                sidePanelWidth: sidePanelWidth,
+                timeNotifier: timeNotifier,
+              ),
+            ),
 
             // 右侧垂直TabBar - 不需要频繁更新
             Positioned(
@@ -598,8 +598,8 @@ class SideTabBar extends StatelessWidget {
               child: Tab(
                 icon: SvgPicture.asset(
                   'source/ico/setting.svg',
-                  width: screenWidth * 0.08,
-                  height: screenWidth * 0.08,
+                  width: screenWidth * 0.15,
+                  height: screenWidth * 0.15,
                   colorFilter:
                       const ColorFilter.mode(Colors.white, BlendMode.srcIn),
                 ),
@@ -610,8 +610,8 @@ class SideTabBar extends StatelessWidget {
               child: Tab(
                 icon: SvgPicture.asset(
                   'source/ico/calendar.svg',
-                  width: screenWidth * 0.08,
-                  height: screenWidth * 0.08,
+                  width: screenWidth * 0.15,
+                  height: screenWidth * 0.15,
                   colorFilter:
                       const ColorFilter.mode(Colors.white, BlendMode.srcIn),
                 ),
@@ -622,8 +622,8 @@ class SideTabBar extends StatelessWidget {
               child: Tab(
                 icon: SvgPicture.asset(
                   'source/ico/modular.svg',
-                  width: screenWidth * 0.08,
-                  height: screenWidth * 0.08,
+                  width: screenWidth * 0.15,
+                  height: screenWidth * 0.15,
                   colorFilter:
                       const ColorFilter.mode(Colors.white, BlendMode.srcIn),
                 ),
@@ -634,8 +634,8 @@ class SideTabBar extends StatelessWidget {
               child: Tab(
                 icon: SvgPicture.asset(
                   'source/ico/a-VoiceAssistants.svg',
-                  width: screenWidth * 0.08,
-                  height: screenWidth * 0.08,
+                  width: screenWidth * 0.15,
+                  height: screenWidth * 0.15,
                   colorFilter:
                       const ColorFilter.mode(Colors.white, BlendMode.srcIn),
                 ),
@@ -659,7 +659,8 @@ class SideTabBar extends StatelessWidget {
               case 2:
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const LaunchpadPage()),
+                  MaterialPageRoute(
+                      builder: (context) => const LaunchpadPage()),
                 );
                 break;
               case 3:
