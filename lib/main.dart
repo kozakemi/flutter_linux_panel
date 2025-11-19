@@ -59,6 +59,11 @@ class MyApp extends StatelessWidget {
     return ListenableBuilder(
       listenable: DisplayService.instance,
       builder: (context, child) {
+        final scaleFactor = DisplayService.instance.scaleFactor;
+        final dens = ((scaleFactor - 1.0) * 4.0).clamp(0.0, 4.0);
+        final iconSize = 24.0 * scaleFactor;
+        final toolbarHeight = 56.0 * scaleFactor;
+        final leadingWidth = 56.0 * scaleFactor;
         return MaterialApp(
           title: 'Anime Clock',
           // debugShowCheckedModeBanner: false,
@@ -66,10 +71,27 @@ class MyApp extends StatelessWidget {
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
             useMaterial3: true,
             fontFamily: 'HarmonyOS Sans SC', // 应用中文字体
+            visualDensity: VisualDensity(horizontal: dens, vertical: dens),
+            iconTheme: IconThemeData(size: iconSize),
+            iconButtonTheme: IconButtonThemeData(
+              style: IconButton.styleFrom(
+                iconSize: iconSize,
+                padding: EdgeInsets.all(8.0 * scaleFactor),
+                minimumSize: Size(
+                  kMinInteractiveDimension * scaleFactor,
+                  kMinInteractiveDimension * scaleFactor,
+                ),
+                tapTargetSize: MaterialTapTargetSize.padded,
+              ),
+            ),
+            appBarTheme: AppBarTheme(
+              toolbarHeight: toolbarHeight,
+              iconTheme: IconThemeData(size: iconSize),
+              actionsIconTheme: IconThemeData(size: iconSize),
+            ),
           ),
           builder: (context, child) {
             // 应用全局缩放 - 只使用textScaleFactor，避免Transform.scale造成的放大镜效果
-            final scaleFactor = DisplayService.instance.scaleFactor;
             return MediaQuery(
               data: MediaQuery.of(context).copyWith(
                 textScaleFactor: scaleFactor,
@@ -207,19 +229,19 @@ class _ClockScreenState extends State<ClockScreen>
             ),
 
             // 底部梯形和日期时间组合组件
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: sidePanelWidth,
-              height: screenHeight * 0.3,
-              // 使用独立组件，只在时间变化时更新
-              child: DateTimeComponent(
-                screenWidth: screenWidth,
-                screenHeight: screenHeight,
-                sidePanelWidth: sidePanelWidth,
-                timeNotifier: timeNotifier,
-              ),
-            ),
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: sidePanelWidth,
+          height: screenHeight * 0.3,
+          // 使用独立组件，只在时间变化时更新
+          child: DateTimeComponent(
+            screenWidth: screenWidth,
+            screenHeight: screenHeight,
+            sidePanelWidth: sidePanelWidth,
+            timeNotifier: timeNotifier,
+          ),
+        ),
 
             // 右侧垂直TabBar - 不需要频繁更新
             Positioned(
@@ -342,15 +364,18 @@ class StatusIconsComponent extends StatelessWidget {
   Widget _buildStatusIcon(BuildContext context, String assetPath, Color color) {
     final iconSize =
         screenHeight > screenWidth ? screenWidth * 0.08 : screenHeight * 0.08;
-    return SizedBox(
-      width: iconSize,
-      height: iconSize,
-      child: Center(
-        child: SvgPicture.asset(
-          assetPath,
-          width: iconSize,
-          height: iconSize,
-          colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
+      child: SizedBox(
+        width: iconSize,
+        height: iconSize,
+        child: Center(
+          child: SvgPicture.asset(
+            assetPath,
+            width: iconSize,
+            height: iconSize,
+            colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+          ),
         ),
       ),
     );
@@ -392,10 +417,13 @@ class DateTimeComponent extends StatelessWidget {
           right: 0,
           bottom: screenHeight * 0.01,
           child: RepaintBoundary(
-            child: DateDisplayContent(
-              screenWidth: screenWidth,
-              screenHeight: screenHeight,
-              timeNotifier: timeNotifier,
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
+              child: DateDisplayContent(
+                screenWidth: screenWidth,
+                screenHeight: screenHeight,
+                timeNotifier: timeNotifier,
+              ),
             ),
           ),
         ),

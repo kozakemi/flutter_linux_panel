@@ -17,6 +17,7 @@ limitations under the License.
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:intl/intl.dart';
+import 'services/display_service.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -353,6 +354,9 @@ class _CalendarPageState extends State<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scale = DisplayService.instance.scaleFactor;
+    final iconSize = 24.0 * scale;
+    final toolbarHeight = 56.0 * scale;
     // 获取设备尺寸
     final size = MediaQuery.of(context).size;
     final isWideScreen = size.width > 600;
@@ -361,13 +365,16 @@ class _CalendarPageState extends State<CalendarPage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('日历'),
+        toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          iconSize: iconSize,
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.today),
+            iconSize: iconSize,
             onPressed: () {
               setState(() {
                 _selectedDate = _today;

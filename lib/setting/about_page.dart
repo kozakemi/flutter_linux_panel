@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'about/software_info.dart';
 import 'about/device_info.dart';
+import '../services/display_service.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
@@ -29,6 +30,9 @@ class AboutPage extends StatefulWidget {
 class _AboutPageState extends State<AboutPage> {
   @override
   Widget build(BuildContext context) {
+    final scale = DisplayService.instance.scaleFactor;
+    final iconSize = 24.0 * scale;
+    final toolbarHeight = 56.0 * scale;
     return Scaffold(
         backgroundColor: const Color(0xFFF2F2F7), // iOS 风格的分组背景
         appBar: AppBar(
@@ -36,8 +40,10 @@ class _AboutPageState extends State<AboutPage> {
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,
           elevation: 0,
+          toolbarHeight: toolbarHeight,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
+            iconSize: iconSize,
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),

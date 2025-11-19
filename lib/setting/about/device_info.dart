@@ -18,6 +18,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import '../../services/display_service.dart';
 
 class DeviceInfoPage extends StatefulWidget {
   const DeviceInfoPage({super.key});
@@ -107,6 +108,9 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scale = DisplayService.instance.scaleFactor;
+    final iconSize = 24.0 * scale;
+    final toolbarHeight = 56.0 * scale;
     final infoMap = _info ?? {};
     final keys = infoMap.keys.map((k) => k.toString()).toList()..sort();
 
@@ -117,14 +121,17 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
+        toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          iconSize: iconSize,
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
           IconButton(
             tooltip: '刷新',
             icon: const Icon(Icons.refresh),
+            iconSize: iconSize,
             onPressed: _loadInfo,
           ),
         ],

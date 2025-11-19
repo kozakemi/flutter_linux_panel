@@ -17,6 +17,7 @@ limitations under the License.
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'launchpad/music_app.dart';
+import 'services/display_service.dart';
 
 /**
  * 图标组件
@@ -115,6 +116,9 @@ class LaunchpadPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scale = DisplayService.instance.scaleFactor;
+    final iconSize = 24.0 * scale;
+    final toolbarHeight = 56.0 * scale;
     final onTapCallbacks = getOnTapCallbacks(context);
     final onLongPressCallbacks = getOnLongPressCallbacks(context);
     return Scaffold(
@@ -124,8 +128,10 @@ class LaunchpadPage extends StatelessWidget {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
+        toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          iconSize: iconSize,
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../services/display_service.dart';
 import 'widgets/spinning_player.dart';
 import 'audio_cover.dart';
 import 'fs/music_fs.dart';
@@ -130,6 +131,10 @@ class _MusicAppPageState extends State<MusicAppPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scale = DisplayService.instance.scaleFactor;
+    final iconSize = 24.0 * scale;
+    final toolbarHeight = 56.0 * scale;
+    final leadingWidth = 56.0 * scale;
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
@@ -137,13 +142,17 @@ class _MusicAppPageState extends State<MusicAppPage> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
+        toolbarHeight: toolbarHeight,
+        leadingWidth: leadingWidth,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          iconSize: iconSize,
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
+            iconSize: iconSize,
             tooltip: '重新扫描',
             onPressed: _loading
                 ? null

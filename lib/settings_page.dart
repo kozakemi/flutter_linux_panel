@@ -19,6 +19,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'setting/wifi_page.dart';
 import 'setting/display_page.dart';
 import 'setting/about_page.dart';
+import 'services/display_service.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -85,6 +86,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scale = DisplayService.instance.scaleFactor;
+    final iconSize = 24.0 * scale;
+    final toolbarHeight = 56.0 * scale;
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7), // iOS 风格的分组背景
       appBar: AppBar(
@@ -92,8 +96,10 @@ class _SettingsPageState extends State<SettingsPage> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
+        toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          iconSize: iconSize,
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),

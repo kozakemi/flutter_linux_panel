@@ -15,18 +15,24 @@ limitations under the License.
 */
 
 import 'package:flutter/material.dart';
+import 'services/display_service.dart';
 
 class LoadingPage extends StatelessWidget {
   const LoadingPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final scale = DisplayService.instance.scaleFactor;
+    final iconSize = 24.0 * scale;
+    final toolbarHeight = 56.0 * scale;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('加载'),
+        toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          iconSize: iconSize,
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),

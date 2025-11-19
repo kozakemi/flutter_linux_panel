@@ -20,6 +20,7 @@ import '../services/display_service.dart';
 import '../services/websocket_service_manager.dart';
 import '../services/brightness_module.dart';
 import '../models/brightness_models.dart';
+import '../services/display_service.dart';
 
 class DisplaySettingsPage extends StatefulWidget {
   const DisplaySettingsPage({super.key});
@@ -358,6 +359,9 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scale = DisplayService.instance.scaleFactor;
+    final iconSize = 24.0 * scale;
+    final toolbarHeight = 56.0 * scale;
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -365,8 +369,10 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
+        toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          iconSize: iconSize,
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),

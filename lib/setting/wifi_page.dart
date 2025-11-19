@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:virtual_keyboard_multi_language/virtual_keyboard_multi_language.dart';
+import '../services/display_service.dart';
 
 import '../models/wifi_models.dart';
 import '../models/websocket_models.dart';
@@ -518,6 +519,9 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scale = DisplayService.instance.scaleFactor;
+    final iconSize = 24.0 * scale;
+    final toolbarHeight = 56.0 * scale;
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
@@ -525,13 +529,16 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
+        toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          iconSize: iconSize,
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
+            iconSize: iconSize,
             onPressed: _isScanning ? null : _loadStatusAndScan,
             tooltip: '刷新网络',
           ),

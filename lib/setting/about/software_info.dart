@@ -17,6 +17,7 @@ limitations under the License.
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import '../../services/display_service.dart';
 
 class SoftwareInfoPage extends StatefulWidget {
   const SoftwareInfoPage({super.key});
@@ -59,6 +60,9 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scale = DisplayService.instance.scaleFactor;
+    final iconSize = 24.0 * scale;
+    final toolbarHeight = 56.0 * scale;
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       appBar: AppBar(
@@ -66,8 +70,10 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
+        toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
+          iconSize: iconSize,
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
