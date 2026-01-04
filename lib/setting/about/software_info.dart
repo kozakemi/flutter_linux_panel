@@ -64,12 +64,9 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
     final iconSize = 24.0 * scale;
     final toolbarHeight = 56.0 * scale;
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('软件信息'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -92,9 +89,9 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
               : ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Padding(

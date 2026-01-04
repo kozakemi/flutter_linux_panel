@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'setting/wifi_page.dart';
 import 'setting/display_page.dart';
 import 'setting/about_page.dart';
@@ -41,6 +40,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+
   Widget _sectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -55,21 +55,17 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _icon(String assetPath) {
-    return SvgPicture.asset(
-      assetPath,
-      width: 24,
-      height: 24,
-      fit: BoxFit.scaleDown,
+  Widget _icon(IconData iconData) {
+    return Icon(
+      iconData,
+      size: 24,
     );
   }
 
   Widget _section(List<Widget> tiles) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Material(
-        color: Colors.white,
-        surfaceTintColor: Colors.transparent,
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
@@ -78,8 +74,8 @@ class _SettingsPageState extends State<SettingsPage> {
           children: ListTile.divideTiles(
             context: context,
             tiles: tiles,
+          color: Theme.of(context).dividerColor.withOpacity(0.1),
           ).toList(),
-        ),
       ),
     );
   }
@@ -90,12 +86,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final iconSize = 24.0 * scale;
     final toolbarHeight = 56.0 * scale;
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7), // iOS 风格的分组背景
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('设置'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -105,21 +98,21 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: ListView(
         children: [
-          const SizedBox(height: 24),
-          // _sectionHeader('网络与连接'),
+          const SizedBox(height: 8),
+          _sectionHeader('连接'),
           _section([
             ListTile(
-              leading: _icon('source/app_ico/WLAN.svg'),
+              leading: _icon(Icons.wifi),
               title: const Text('Wi‑Fi'),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right, size: 20),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const WiFiSettingsPage()),
               ),
             ),
             ListTile(
-              leading: _icon('source/app_ico/Bluetooth.svg'),
+              leading: _icon(Icons.bluetooth),
               title: const Text('蓝牙'),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right, size: 20),
               onTap: () => _showNotImplemented('蓝牙'),
             ),
             // ListTile(
@@ -132,61 +125,61 @@ class _SettingsPageState extends State<SettingsPage> {
             // ),
           ]),
           const SizedBox(height: 24),
-          // _sectionHeader('显示与声音'),
+          _sectionHeader('显示和声音'),
           _section([
             ListTile(
-              leading: _icon('source/app_ico/DisplayBrightness.svg'),
+              leading: _icon(Icons.display_settings),
               title: const Text('显示设置'),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right, size: 20),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const DisplaySettingsPage()),
               ),
             ),
             ListTile(
-              leading: _icon('source/app_ico/SoundsHaptics.svg'),
+              leading: _icon(Icons.volume_up),
               title: const Text('声音设置'),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right, size: 20),
               onTap: () => _showNotImplemented('声音设置'),
             ),
             ListTile(
-              leading: _icon('source/app_ico/Wallpaper.svg'),
+              leading: _icon(Icons.wallpaper),
               title: const Text('壁纸设置'),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right, size: 20),
               onTap: () => _showNotImplemented('壁纸设置'),
             ),
           ]),
           const SizedBox(height: 24),
-          // _sectionHeader('系统与输入'),
+          _sectionHeader('系统'),
           _section([
             ListTile(
-              leading: _icon('source/app_ico/Battery.svg'),
+              leading: _icon(Icons.battery_std),
               title: const Text('电池管理'),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right, size: 20),
               onTap: () => _showNotImplemented('电池管理'),
             ),
             ListTile(
-              leading: _icon('source/app_ico/Keyboards.svg'),
+              leading: _icon(Icons.keyboard),
               title: const Text('键盘设置'),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right, size: 20),
               onTap: () => _showNotImplemented('键盘设置'),
             ),
           ]),
 
           const SizedBox(height: 24),
-          // _sectionHeader(''),
+          _sectionHeader('关于'),
           _section([
           ListTile(
-            leading: _icon('source/app_ico/about.svg'),
+              leading: _icon(Icons.info_outline),
             title: const Text('关于'),
-            trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right, size: 20),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const AboutPage()),
             ),
           ),
           ListTile(
-            leading: _icon('source/app_ico/developer.svg'),
+              leading: _icon(Icons.developer_mode),
             title: const Text('开发者'),
-            trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Icons.chevron_right, size: 20),
             onTap: () => _showNotImplemented('开发者'),
           ),
           ]),

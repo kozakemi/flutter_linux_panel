@@ -21,9 +21,10 @@ import 'package:intl/intl.dart';
 import 'settings_page.dart';
 import 'calendar_page.dart';
 import 'launchpad_page.dart';
-import 'loading_page.dart';
+import 'live2d_page.dart';
 import 'global_tap_ripple.dart';
 import 'services/display_service.dart';
+import 'services/theme_service.dart';
 import 'services/websocket_service_manager.dart';
 import 'services/wifi_module.dart';
 import 'models/wifi_models.dart';
@@ -39,6 +40,9 @@ void main() async {
 
   // 初始化显示服务
   await DisplayService.instance.initialize();
+  
+  // 初始化主题服务
+  await ThemeService.instance.initialize();
 
   // 初始化 WebSocket 服务（在应用启动阶段）
   try {
@@ -54,21 +58,19 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: DisplayService.instance,
-      builder: (context, child) {
-        final scaleFactor = DisplayService.instance.scaleFactor;
+  // 构建主题数据
+  ThemeData _buildTheme(double scaleFactor, Brightness brightness) {
         final dens = ((scaleFactor - 1.0) * 4.0).clamp(0.0, 4.0);
         final iconSize = 24.0 * scaleFactor;
         final toolbarHeight = 56.0 * scaleFactor;
-        final leadingWidth = 56.0 * scaleFactor;
-        return MaterialApp(
-          title: 'Anime Clock',
-          // debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+    
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: Colors.blue,
+      brightness: brightness,
+    );
+    
+    return ThemeData(
+      colorScheme: colorScheme,
             useMaterial3: true,
             fontFamily: 'HarmonyOS Sans SC', // 应用中文字体
             visualDensity: VisualDensity(horizontal: dens, vertical: dens),
@@ -78,7 +80,7 @@ class MyApp extends StatelessWidget {
                 iconSize: iconSize,
                 padding: EdgeInsets.all(8.0 * scaleFactor),
                 minimumSize: Size(
-                  kMinInteractiveDimension * scaleFactor,
+            kMinInteractiveDimension * scaleFactor,
                   kMinInteractiveDimension * scaleFactor,
                 ),
                 tapTargetSize: MaterialTapTargetSize.padded,
@@ -86,10 +88,39 @@ class MyApp extends StatelessWidget {
             ),
             appBarTheme: AppBarTheme(
               toolbarHeight: toolbarHeight,
-              iconTheme: IconThemeData(size: iconSize),
-              actionsIconTheme: IconThemeData(size: iconSize),
+        iconTheme: IconThemeData(size: iconSize, color: colorScheme.onSurface),
+        actionsIconTheme: IconThemeData(size: iconSize, color: colorScheme.onSurface),
             ),
-          ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+          TargetPlatform.android: ZoomPageTransitionsBuilder(),
+          TargetPlatform.iOS: ZoomPageTransitionsBuilder(),
+          TargetPlatform.macOS: ZoomPageTransitionsBuilder(),
+          TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+          TargetPlatform.fuchsia: ZoomPageTransitionsBuilder(),
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        DisplayService.instance,
+        ThemeService.instance,
+      ]),
+      builder: (context, child) {
+        final scaleFactor = DisplayService.instance.scaleFactor;
+        final themeMode = ThemeService.instance.materialThemeMode;
+        
+        return MaterialApp(
+          title: 'Anime Clock',
+          // debugShowCheckedModeBanner: false,
+          theme: _buildTheme(scaleFactor, Brightness.light),
+          darkTheme: _buildTheme(scaleFactor, Brightness.dark),
+          themeMode: themeMode,
           builder: (context, child) {
             // 应用全局缩放 - 只使用textScaleFactor，避免Transform.scale造成的放大镜效果
             return MediaQuery(
@@ -666,7 +697,7 @@ class SideTabBar extends StatelessWidget {
               case 3:
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const LoadingPage()),
+                  MaterialPageRoute(builder: (context) => const Live2DPage()),
                 );
                 break;
             }

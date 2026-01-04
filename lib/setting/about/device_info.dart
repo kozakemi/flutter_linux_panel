@@ -115,12 +115,9 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
     final keys = infoMap.keys.map((k) => k.toString()).toList()..sort();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('设备信息'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),

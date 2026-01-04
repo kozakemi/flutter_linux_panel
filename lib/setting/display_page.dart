@@ -17,10 +17,10 @@ limitations under the License.
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/display_service.dart';
+import '../services/theme_service.dart';
 import '../services/websocket_service_manager.dart';
 import '../services/brightness_module.dart';
 import '../models/brightness_models.dart';
-import '../services/display_service.dart';
 
 class DisplaySettingsPage extends StatefulWidget {
   const DisplaySettingsPage({super.key});
@@ -205,12 +205,13 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
 
   /// 构建亮度调节部分
   Widget _buildBrightnessSection() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
           // 亮度滑块
@@ -300,16 +301,62 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     );
   }
 
+  /// 显示主题模式选择对话框
+  void _showThemeModeDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return ListenableBuilder(
+          listenable: ThemeService.instance,
+          builder: (context, child) {
+            final currentMode = ThemeService.instance.themeMode;
+            return AlertDialog(
+              title: const Text('选择主题模式'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppThemeMode.light,
+                  AppThemeMode.dark,
+                  AppThemeMode.system,
+                ].map((mode) {
+                  return RadioListTile<AppThemeMode>(
+                    title: Text(ThemeService.instance.getThemeModeName(mode)),
+                    value: mode,
+                    groupValue: currentMode,
+                    onChanged: (AppThemeMode? value) async {
+                      if (value != null) {
+                        await ThemeService.instance.setThemeMode(value);
+                        if (context.mounted) {
+                          Navigator.of(context).pop();
+                        }
+                      }
+                    },
+                  );
+                }).toList(),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('取消'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   /// 构建节标题
   Widget _sectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 14,
+        style: TextStyle(
+          fontSize: 13,
           fontWeight: FontWeight.w500,
-          color: Colors.grey,
+          color: Colors.grey.shade600,
         ),
       ),
     );
@@ -363,12 +410,9 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     final iconSize = 24.0 * scale;
     final toolbarHeight = 56.0 * scale;
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('显示设置'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -380,13 +424,50 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               children: [
-                _sectionHeader('界面缩放'),
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
+                const SizedBox(height: 8),
+                _sectionHeader('主题'),
+                Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
+                  clipBehavior: Clip.antiAlias,
+                  child: ListTile(
+                    leading: const Icon(Icons.brightness_6, size: 24),
+                    title: const Text('主题模式'),
+                    trailing: ListenableBuilder(
+                      listenable: ThemeService.instance,
+                      builder: (context, child) {
+                        final currentMode = ThemeService.instance.themeMode;
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              ThemeService.instance.getThemeModeName(currentMode),
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.chevron_right, size: 20),
+                          ],
+                        );
+                      },
+                    ),
+                    onTap: () => _showThemeModeDialog(),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _sectionHeader('界面缩放'),
+                Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  clipBehavior: Clip.antiAlias,
                   child: Column(
                     children: [
                       ListTile(

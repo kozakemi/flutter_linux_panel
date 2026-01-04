@@ -44,3 +44,5 @@ app.*.map.json
 pubspec.lock
 pubspec.lock
 pubspec.lock
+
+/linux/CubismNativeSamples/

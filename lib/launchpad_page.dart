@@ -58,9 +58,9 @@ class IconItem extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
-              color: Colors.black87,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
             textAlign: TextAlign.center,
             maxLines: 1,
@@ -122,12 +122,9 @@ class LaunchpadPage extends StatelessWidget {
     final onTapCallbacks = getOnTapCallbacks(context);
     final onLongPressCallbacks = getOnLongPressCallbacks(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('启动台'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),

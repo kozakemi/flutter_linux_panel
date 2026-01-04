@@ -18,7 +18,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:virtual_keyboard_multi_language/virtual_keyboard_multi_language.dart';
 import '../services/display_service.dart';
 
@@ -481,11 +480,9 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
   Widget _section(List<Widget> tiles) {
     if (tiles.isEmpty) return const SizedBox.shrink();
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Material(
-        color: Colors.white,
-        surfaceTintColor: Colors.transparent,
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
@@ -494,26 +491,16 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
           children: ListTile.divideTiles(
             context: context,
             tiles: tiles,
+          color: Theme.of(context).dividerColor.withOpacity(0.1),
           ).toList(),
-        ),
       ),
     );
   }
 
   Widget _wifiIcon() {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: const Color(0xFFEAF3FF),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      alignment: Alignment.center,
-      child: SvgPicture.asset(
-        'source/app_ico/WLAN.svg',
-        width: 28,
-        height: 28,
-      ),
+    return const Icon(
+      Icons.wifi,
+      size: 48,
     );
   }
 
@@ -523,12 +510,9 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
     final iconSize = 24.0 * scale;
     final toolbarHeight = 56.0 * scale;
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('无线局域网'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         toolbarHeight: toolbarHeight,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -547,11 +531,9 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
       body: ListView(
         children: [
           // 顶部说明卡片
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Material(
-              color: Colors.white,
-              surfaceTintColor: Colors.transparent,
+          Card(
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
               ),
@@ -582,7 +564,6 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
                       ),
                     ),
                   ],
-                ),
               ),
             ),
           ),

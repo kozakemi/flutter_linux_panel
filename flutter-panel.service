@@ -1,0 +1,31 @@
+[Unit]
+Description=Flutter Linux Panel Application
+After=weston.service
+Wants=weston.service
+
+[Service]
+Type=simple
+# 根据实际用户调整，如果需要以 root 运行则使用 User=root
+User=root
+WorkingDirectory=/home/neons/flutter_linux_panel
+ExecStart=/home/neons/flutter_linux_panel/run-systemd.sh
+Restart=on-failure
+RestartSec=1s
+StartLimitIntervalSec=0
+StartLimitBurst=30
+
+# 环境变量
+Environment="XDG_RUNTIME_DIR=/run/user/0"
+Environment="WAYLAND_DISPLAY=wayland-0"
+
+# 日志设置
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=flutter-panel
+
+# 安全设置（如果需要以非 root 用户运行，取消注释）
+# PrivateTmp=true
+# NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

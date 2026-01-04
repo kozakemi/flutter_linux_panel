@@ -271,13 +271,15 @@ class _CalendarPageState extends State<CalendarPage> {
 
   // 构建选中日期的详细信息
   Widget _buildSelectedDateDetails() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    return Card(
       margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
-      decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.1),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
       ),
+      color: Colors.blue.withOpacity(0.1),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -318,7 +320,7 @@ class _CalendarPageState extends State<CalendarPage> {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.5),
+                color: Theme.of(context).cardColor.withOpacity(0.5),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Column(
@@ -348,6 +350,7 @@ class _CalendarPageState extends State<CalendarPage> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -362,7 +365,7 @@ class _CalendarPageState extends State<CalendarPage> {
     final isWideScreen = size.width > 600;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('日历'),
         toolbarHeight: toolbarHeight,
@@ -437,13 +440,15 @@ class _CalendarPageState extends State<CalendarPage> {
 
   // 构建时间间隔详情（用于宽屏设备右侧显示）
   Widget _buildTimeIntervalDetails() {
-    return Container(
-      padding: const EdgeInsets.all(12),
+    return Card(
       margin: const EdgeInsets.only(top: 16),
-      decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.1),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
       ),
+      color: Colors.blue.withOpacity(0.1),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -494,6 +499,7 @@ class _CalendarPageState extends State<CalendarPage> {
           // const SizedBox(height: 8),
           // const Text('暂无事项', style: TextStyle(fontSize: 14)),
         ],
+        ),
       ),
     );
   }

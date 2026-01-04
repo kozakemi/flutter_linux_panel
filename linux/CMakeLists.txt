@@ -50,6 +50,9 @@ endfunction()
 set(FLUTTER_MANAGED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/flutter")
 add_subdirectory(${FLUTTER_MANAGED_DIR})
 
+# Live2D Plugin
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/live2d_plugin)
+
 # System-level dependencies.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
@@ -73,6 +76,12 @@ apply_standard_settings(${BINARY_NAME})
 # Add dependency libraries. Add any application-specific dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
+target_link_libraries(${BINARY_NAME} PRIVATE live2d_plugin)
+
+# Include Live2D plugin headers
+target_include_directories(${BINARY_NAME} PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/live2d_plugin
+)
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)

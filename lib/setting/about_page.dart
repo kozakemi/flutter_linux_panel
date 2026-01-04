@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'about/software_info.dart';
 import 'about/device_info.dart';
 import '../services/display_service.dart';
@@ -34,12 +33,9 @@ class _AboutPageState extends State<AboutPage> {
     final iconSize = 24.0 * scale;
     final toolbarHeight = 56.0 * scale;
     return Scaffold(
-        backgroundColor: const Color(0xFFF2F2F7), // iOS 风格的分组背景
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           title: const Text('关于'),
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black,
-          elevation: 0,
           toolbarHeight: toolbarHeight,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
@@ -49,12 +45,10 @@ class _AboutPageState extends State<AboutPage> {
         ),
         body: ListView(
           children: [
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Material(
-                color: Colors.white,
-                surfaceTintColor: Colors.transparent,
+            const SizedBox(height: 8),
+            Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -64,24 +58,27 @@ class _AboutPageState extends State<AboutPage> {
                     context: context,
                     tiles: [
                       ListTile(
+                      leading: const Icon(Icons.phone_android),
                         title: const Text('设备信息'),
-                        trailing: const Icon(Icons.chevron_right),
+                      trailing: const Icon(Icons.chevron_right, size: 20),
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(builder: (_) => const DeviceInfoPage()),
                         ),
                       ),
                       ListTile(
+                      leading: const Icon(Icons.info_outline),
                         title: const Text('软件信息'),
-                        trailing: const Icon(Icons.chevron_right),
+                      trailing: const Icon(Icons.chevron_right, size: 20),
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(builder: (_) => const SoftwareInfoPage()),
                         ),
                       ),
                     ],
+                  color: Theme.of(context).dividerColor.withOpacity(0.1),
                   ).toList(),
-                ),
               ),
             ),
+            const SizedBox(height: 24),
           ],
         ));
   }

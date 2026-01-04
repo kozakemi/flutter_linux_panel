@@ -148,12 +148,9 @@ class _MusicAppPageState extends State<MusicAppPage> {
     final toolbarHeight = 56.0 * scale;
     final leadingWidth = 56.0 * scale;
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F7),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('音乐'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         toolbarHeight: toolbarHeight,
         leadingWidth: leadingWidth,
         leading: IconButton(
