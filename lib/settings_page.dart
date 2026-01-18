@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'setting/wifi_page.dart';
 import 'setting/display_page.dart';
 import 'setting/about_page.dart';
+import 'setting/developer_page.dart';
 import 'services/display_service.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -180,7 +181,9 @@ class _SettingsPageState extends State<SettingsPage> {
               leading: _icon(Icons.developer_mode),
             title: const Text('开发者'),
               trailing: const Icon(Icons.chevron_right, size: 20),
-            onTap: () => _showNotImplemented('开发者'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const DeveloperPage()),
+            ),
           ),
           ]),
           const SizedBox(height: 24),

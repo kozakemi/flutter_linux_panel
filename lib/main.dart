@@ -27,7 +27,9 @@ import 'services/display_service.dart';
 import 'services/theme_service.dart';
 import 'services/websocket_service_manager.dart';
 import 'services/wifi_module.dart';
+import 'services/debug_service.dart';
 import 'models/wifi_models.dart';
+import 'widgets/performance_overlay.dart';
 
 // 全局配置变量
 const bool showSeconds = true; // 控制是否显示秒
@@ -43,6 +45,9 @@ void main() async {
   
   // 初始化主题服务
   await ThemeService.instance.initialize();
+  
+  // 初始化调试服务
+  await DebugService.instance.initialize();
 
   // 初始化 WebSocket 服务（在应用启动阶段）
   try {
@@ -127,7 +132,9 @@ class MyApp extends StatelessWidget {
               data: MediaQuery.of(context).copyWith(
                 textScaleFactor: scaleFactor,
               ),
-              child: GlobalTapRipple(child: child ?? const SizedBox.shrink()),
+              child: PerformanceOverlayWrapper(
+                child: GlobalTapRipple(child: child ?? const SizedBox.shrink()),
+              ),
             );
           },
           routes: {
