@@ -46,8 +46,8 @@ class WebSocketServiceManager {
 
     try {
       developer.log('初始化WebSocket服务管理器', name: 'ServiceManager');
-      // 注册默认模块配置，确保URL与路径配置正确
-      ModuleConfigRegistry.initializeDefaultConfigs();
+      // 注册默认模块配置，确保URL与路径配置正确（从 SharedPreferences 读取地址）
+      await ModuleConfigRegistry.initializeDefaultConfigsAsync();
       
       final router = WebSocketRouterImpl();
       _moduleManager = WebSocketModuleManagerImpl(router);

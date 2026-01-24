@@ -85,13 +85,13 @@ class _WiFiSettingsPageState extends State<WiFiSettingsPage> {
       // 刷新WiFi状态
       await _wifiModule!.getStatus();
 
-      // 只有在WiFi开启时才扫描网络，避免不必要的请求
-      if (_wifiStatus.enabled && !_isScanning) {
-        print('WiFi 页面: 定时器 - WiFi已开启，执行网络扫描');
-        await _wifiModule!.scanNetworks();
-      } else {
-        print('WiFi 页面: 定时器 - WiFi未开启或正在扫描，跳过网络扫描');
-      }
+      // // 只有在WiFi开启时才扫描网络，避免不必要的请求
+      // if (_wifiStatus.enabled && !_isScanning) {
+      //   print('WiFi 页面: 定时器 - WiFi已开启，执行网络扫描');
+      //   await _wifiModule!.scanNetworks();
+      // } else {
+      //   print('WiFi 页面: 定时器 - WiFi未开启或正在扫描，跳过网络扫描');
+      // }
     } catch (e) {
       print('WiFi 页面: 定时器 - 自动更新出错: $e');
     }

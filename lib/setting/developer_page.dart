@@ -15,8 +15,12 @@ limitations under the License.
 */
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:virtual_keyboard_multi_language/virtual_keyboard_multi_language.dart';
 import '../services/display_service.dart';
 import '../services/debug_service.dart';
+import '../services/websocket_config.dart';
+import '../services/websocket_service_manager.dart';
 
 class DeveloperPage extends StatefulWidget {
   const DeveloperPage({super.key});
@@ -26,6 +30,272 @@ class DeveloperPage extends StatefulWidget {
 }
 
 class _DeveloperPageState extends State<DeveloperPage> {
+  String _websocketAddress = '';
+  bool _isLoadingAddress = true;
+  final TextEditingController _addressController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWebSocketAddress();
+  }
+
+  @override
+  void dispose() {
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  /// 加载保存的 WebSocket 地址
+  Future<void> _loadWebSocketAddress() async {
+    try {
+      final address = await WebSocketConfig.getServerAddress();
+      setState(() {
+        _websocketAddress = address;
+        _addressController.text = address;
+        _isLoadingAddress = false;
+      });
+    } catch (e) {
+      setState(() {
+        _websocketAddress = WebSocketConfig.defaultServerAddress;
+        _addressController.text = _websocketAddress;
+        _isLoadingAddress = false;
+      });
+    }
+  }
+
+  /// 保存 WebSocket 地址并重启服务
+  Future<void> _saveWebSocketAddress(String address) async {
+    try {
+      await WebSocketConfig.setServerAddress(address);
+      setState(() {
+        _websocketAddress = address;
+      });
+
+      // 重启 WebSocket 服务以应用新地址
+      try {
+        await WebSocketServiceManager.instance.restart();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('WebSocket 地址已更新为: $address'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('地址已保存，但重启服务失败: $e'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('保存地址失败: $e'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  /// 显示 WebSocket 地址设置对话框
+  Future<void> _showWebSocketAddressDialog() async {
+    final TextEditingController addressController = TextEditingController(text: _websocketAddress);
+    final FocusNode addressFocusNode = FocusNode();
+
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        String inputAddress = _websocketAddress;
+        bool isValidating = false;
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          addressFocusNode.requestFocus();
+        });
+
+        bool isValidAddress(String address) {
+          if (address.isEmpty) return false;
+          final parts = address.split(':');
+          if (parts.length != 2) return false;
+          final port = int.tryParse(parts[1]);
+          return port != null && port > 0 && port < 65536;
+        }
+
+        Future<void> submit() async {
+          if (!isValidAddress(inputAddress)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('地址格式不正确，应为 host:port')),
+            );
+            return;
+          }
+
+          Navigator.of(ctx).pop(inputAddress);
+        }
+
+        const keyboardHeight = 300.0;
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: SafeArea(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              child: Container(
+                color: Colors.white,
+                child: StatefulBuilder(
+                  builder: (BuildContext context, StateSetter setModalState) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '设置 WebSocket 后端地址',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close),
+                                onPressed: () => Navigator.of(ctx).pop(),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: TextField(
+                            readOnly: true,
+                            autofocus: true,
+                            showCursor: true,
+                            enableInteractiveSelection: false,
+                            focusNode: addressFocusNode,
+                            onTapOutside: (_) => addressFocusNode.requestFocus(),
+                            decoration: const InputDecoration(
+                              labelText: '服务器地址',
+                              hintText: 'localhost:8080',
+                              helperText: '格式: host:port (例如: localhost:8080)',
+                              border: OutlineInputBorder(),
+                            ),
+                            controller: addressController,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            '默认地址: ${WebSocketConfig.defaultServerAddress}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: keyboardHeight,
+                          child: Container(
+                            color: const Color(0xFF222222),
+                            child: Focus(
+                              canRequestFocus: false,
+                              skipTraversal: true,
+                              child: VirtualKeyboard(
+                                height: keyboardHeight,
+                                textColor: Colors.white,
+                                defaultLayouts: const [
+                                  VirtualKeyboardDefaultLayouts.English,
+                                ],
+                                type: VirtualKeyboardType.Alphanumeric,
+                                postKeyPress: (key) {
+                                  setModalState(() {
+                                    switch (key.keyType) {
+                                      case VirtualKeyboardKeyType.String:
+                                        inputAddress += key.text ?? '';
+                                        break;
+                                      case VirtualKeyboardKeyType.Action:
+                                        final action = key.action;
+                                        if (action == null) break;
+                                        switch (action) {
+                                          case VirtualKeyboardKeyAction.Backspace:
+                                            if (inputAddress.isNotEmpty) {
+                                              inputAddress = inputAddress.substring(
+                                                0,
+                                                inputAddress.length - 1,
+                                              );
+                                            }
+                                            break;
+                                          case VirtualKeyboardKeyAction.Space:
+                                            inputAddress += ' ';
+                                            break;
+                                          case VirtualKeyboardKeyAction.Return:
+                                            if (isValidating) break;
+                                            submit();
+                                            break;
+                                          case VirtualKeyboardKeyAction.Shift:
+                                            break;
+                                          default:
+                                            break;
+                                        }
+                                        break;
+                                    }
+                                    addressController.text = inputAddress;
+                                    addressFocusNode.requestFocus();
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: isValidating ? null : submit,
+                                  child: isValidating
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Text('确定'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    ).whenComplete(() {
+      addressController.dispose();
+      addressFocusNode.dispose();
+    });
+
+    if (result != null && result.isNotEmpty) {
+      await _saveWebSocketAddress(result);
+    }
+  }
+
   Widget _icon(IconData iconData) {
     return Icon(
       iconData,
@@ -100,6 +370,19 @@ class _DeveloperPageState extends State<DeveloperPage> {
                   onChanged: (value) {
                     DebugService.instance.setPerformanceOverlayEnabled(value);
                   },
+                ),
+              ]),
+              const SizedBox(height: 16),
+              _sectionHeader('网络设置'),
+              _section([
+                ListTile(
+                  leading: _icon(Icons.settings_ethernet),
+                  title: const Text('WebSocket 后端地址'),
+                  subtitle: _isLoadingAddress
+                      ? const Text('加载中...')
+                      : Text('当前: $_websocketAddress'),
+                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  onTap: _showWebSocketAddressDialog,
                 ),
               ]),
               const SizedBox(height: 16),
@@ -341,3 +624,4 @@ class TouchTrailPainter extends CustomPainter {
       trail.length != oldDelegate.trail.length ||
       currentPoint != oldDelegate.currentPoint;
 }
+

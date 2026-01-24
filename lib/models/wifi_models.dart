@@ -402,7 +402,7 @@ class WiFiRequestBuilder {
     return WebSocketRequest(
       requestId: requestId ?? 'req-${DateTime.now().millisecondsSinceEpoch}',
       type: WiFiRequestTypes.scan,
-      data: {},
+      data: {'rescan': true},
     );
   }
 
