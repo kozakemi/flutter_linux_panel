@@ -18,6 +18,24 @@ jobs:
 
       - name: Install cross-compilation toolchain and arm64 runtime libs
         run: |
+          # GitHub Ubuntu runner sources are amd64-oriented. After enabling
+          # arm64 architecture, force existing deb lines to amd64 only and add
+          # ubuntu-ports for arm64, otherwise apt update may hit arm64 404.
+          if [ -f /etc/apt/sources.list ]; then
+            sudo sed -E -i 's|^deb ([^[]\S+.*)$|deb [arch=amd64] \1|g' /etc/apt/sources.list
+          fi
+          for f in /etc/apt/sources.list.d/*.list; do
+            [ -f "$f" ] || continue
+            sudo sed -E -i 's|^deb ([^[]\S+.*)$|deb [arch=amd64] \1|g' "$f"
+          done
+
+          sudo tee /etc/apt/sources.list.d/arm64-ports.list >/dev/null <<'EOF'
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-backports main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
+          EOF
+
           sudo dpkg --add-architecture arm64
           sudo apt-get update
           sudo apt-get install -y \
