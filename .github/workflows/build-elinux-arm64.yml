@@ -48,8 +48,8 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/sony/flutter-elinux.git "$HOME/flutter-elinux"
           echo "$HOME/flutter-elinux/bin" >> "$GITHUB_PATH"
-          flutter-elinux --version
-          flutter-elinux doctor
+          "$HOME/flutter-elinux/bin/flutter-elinux" --version
+          "$HOME/flutter-elinux/bin/flutter-elinux" doctor
 
       - name: Build arm64 bundle and archive
         run: |
