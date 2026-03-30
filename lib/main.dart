@@ -185,15 +185,6 @@ class _ClockScreenState extends State<ClockScreen>
       }
     });
 
-    // 模拟WiFi和MQTT状态检查 - 减少更新频率到每2秒一次
-    _statusTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      // 仅保留 MQTT 的示例更新，WiFi 状态由模块流驱动
-      const newMqttStatus = true; // TODO: 替换为真实 MQTT 状态
-      if (mqttStatusNotifier.value != newMqttStatus) {
-        mqttStatusNotifier.value = newMqttStatus;
-      }
-    });
-
     // 订阅 WiFi 模块状态流，驱动主界面图标
     final wifiModule = WebSocketServiceManager.instance.wifiModule;
     if (wifiModule != null) {
@@ -217,7 +208,6 @@ class _ClockScreenState extends State<ClockScreen>
   void dispose() {
     // 清理资源
     _timeTimer.cancel();
-    _statusTimer.cancel();
     // 取消 WiFi 轮询定时器
     _wifiPollTimer?.cancel();
     _wifiStatusSubscription?.cancel();
