@@ -1,6 +1,26 @@
 cmake_minimum_required(VERSION 3.15)
 # stop cmake from taking make from CMAKE_SYSROOT
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+
+# Cross-compile: when building eLinux arm64 on x86_64 host, force GNU cross
+# compiler to avoid linking arm64 engine with host clang.
+#
+# Note: FLUTTER_TARGET_PLATFORM is passed by flutter-elinux command line, while
+# CMAKE_SYSTEM_PROCESSOR may be unset/late during first configure.
+if(FLUTTER_TARGET_PLATFORM STREQUAL "elinux-arm64" OR
+   CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64" OR
+   CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+  find_program(AARCH64_GCC aarch64-linux-gnu-gcc)
+  find_program(AARCH64_GXX aarch64-linux-gnu-g++)
+  if(NOT AARCH64_GCC OR NOT AARCH64_GXX)
+    message(FATAL_ERROR
+      "Cross compiler not found. Please install gcc-aarch64-linux-gnu and g++-aarch64-linux-gnu.")
+  endif()
+  set(CMAKE_C_COMPILER "${AARCH64_GCC}" CACHE FILEPATH "ARM64 C compiler" FORCE)
+  set(CMAKE_CXX_COMPILER "${AARCH64_GXX}" CACHE FILEPATH "ARM64 CXX compiler" FORCE)
+  message(STATUS "Using ARM64 cross compiler: ${CMAKE_CXX_COMPILER}")
+endif()
+
 project(runner LANGUAGES CXX)
 
 set(BINARY_NAME "demo1")

@@ -1,0 +1,47 @@
+name: Build eLinux ARM64
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  build-arm64:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install cross-compilation toolchain and arm64 runtime libs
+        run: |
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+          sudo apt-get install -y \
+            git curl cmake ninja-build pkg-config clang \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            libwayland-client0:arm64 libwayland-cursor0:arm64 libwayland-egl1:arm64 \
+            libegl1:arm64 libxkbcommon0:arm64 libfontconfig1:arm64
+
+      - name: Install flutter-elinux SDK
+        run: |
+          git clone --depth 1 https://github.com/sony/flutter-elinux.git "$HOME/flutter-elinux"
+          echo "$HOME/flutter-elinux/bin" >> "$GITHUB_PATH"
+          flutter-elinux --version
+          flutter-elinux doctor
+
+      - name: Build arm64 bundle and archive
+        run: |
+          chmod +x ./build_arm64_elinux.sh
+          ./build_arm64_elinux.sh
+
+      - name: Upload ARM64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo1-elinux-arm64
+          path: build/elinux/arm64/release/dist/demo1-elinux-arm64-*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
