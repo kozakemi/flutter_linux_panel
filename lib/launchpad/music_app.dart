@@ -1,18 +1,36 @@
-import 'dart:ui';
+/*
+Copyright 2025 kozakemi
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 import 'dart:async';
+import 'dart:ui';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter_soloud/flutter_soloud.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+
 import '../services/display_service.dart';
-import 'widgets/spinning_player.dart';
 import 'audio_cover.dart';
 import 'fs/music_fs.dart';
-import 'widgets/waveform_painter.dart';
 import 'widgets/spectrum_painter.dart';
+import 'widgets/spinning_player.dart';
 
 class MusicAppPage extends StatefulWidget {
-  const MusicAppPage({super.key});
+  const MusicAppPage({super.key, this.initialTrackPath});
+
+  final String? initialTrackPath;
 
   @override
   State<MusicAppPage> createState() => _MusicAppPageState();
@@ -21,55 +39,90 @@ class MusicAppPage extends StatefulWidget {
 class _MusicAppPageState extends State<MusicAppPage> {
   static const String musicDirPath = '/mnt/tfcard/music';
   // static const String musicDirPath = '/home/tspi/音乐';
-  final SoLoud _soloud = SoLoud.instance;
-  final List<AudioSource> _sources = [];
-  SoundHandle? _currentHandle;
+  late final AudioPlayer _player;
   final List<String> _tracks = [];
   bool _loading = true;
   String? _error;
   int? _currentIndex;
-  Timer? _posTimer;
-  Timer? _vizTimer;
-  List<double> _vizSamples = const [];
-  List<double> _vizFft = const [];
-  static const double _smoothAlpha = 0.35;
+  PlayerState _playerState = PlayerState.stopped;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  double _volume = 1;
+  double? _dragPositionMs;
+  StreamSubscription<Duration>? _positionSubscription;
+  StreamSubscription<Duration>? _durationSubscription;
+  StreamSubscription<PlayerState>? _playerStateSubscription;
+  StreamSubscription<void>? _playerCompleteSubscription;
+  int _playRequestId = 0;
   final GlobalKey _controlsKey = GlobalKey();
   double _controlsHeight = 0;
 
   @override
   void initState() {
     super.initState();
+    _player = AudioPlayer();
+    _positionSubscription = _player.onPositionChanged.listen((position) {
+      if (!mounted || _dragPositionMs != null) return;
+      setState(() => _position = position);
+    });
+    _durationSubscription = _player.onDurationChanged.listen((duration) {
+      if (!mounted) return;
+      setState(() => _duration = duration);
+    });
+    _playerStateSubscription = _player.onPlayerStateChanged.listen((state) {
+      if (!mounted) return;
+      setState(() => _playerState = state);
+    });
+    _playerCompleteSubscription = _player.onPlayerComplete.listen((_) {
+      if (!mounted) return;
+      setState(() {
+        _playerState = PlayerState.completed;
+        _position = Duration.zero;
+      });
+    });
     _init();
-    _posTimer = Timer.periodic(const Duration(milliseconds: 500), (t) {
-      if (_currentHandle != null &&
-          _soloud.getIsValidVoiceHandle(_currentHandle!)) {
-        setState(() {});
-      }
-    });
-    _vizTimer = Timer.periodic(const Duration(milliseconds: 60), (t) {
-      if (_isPlaying()) {
-        _updateVisualizationSamples();
-      }
-    });
   }
 
   Future<void> _init() async {
+    final initialTrackPath = widget.initialTrackPath;
+    final scanPath = initialTrackPath == null
+        ? musicDirPath
+        : _parentDirectory(initialTrackPath);
     try {
-      if (!_soloud.isInitialized) {
-        await _soloud.init();
-        _soloud.setVisualizationEnabled(true);
+      List<String> entries;
+      try {
+        // initialTrackPath 模式只扫描所在目录的直接子文件，并跳过隐藏项
+        entries = await scanAudioFiles(
+          scanPath,
+          _isAudioFile,
+          recursive: initialTrackPath == null,
+          includeHidden: initialTrackPath == null,
+        );
+      } catch (_) {
+        // 扫描失败时至少保证被打开的文件可以播放
+        if (initialTrackPath == null) rethrow;
+        entries = <String>[];
       }
-      final entries = await scanAudioFiles(musicDirPath, _isAudioFile);
+      if (initialTrackPath != null && !entries.contains(initialTrackPath)) {
+        entries.insert(0, initialTrackPath);
+      }
+      final initialIndex =
+          initialTrackPath == null ? -1 : entries.indexOf(initialTrackPath);
 
+      if (!mounted) return;
       setState(() {
         _tracks
           ..clear()
           ..addAll(entries);
-        _sources.clear();
+        _currentIndex = initialIndex >= 0 ? initialIndex : null;
         _loading = false;
-        _error = _tracks.isEmpty ? '未在 $musicDirPath 找到音频文件' : null;
+        _error = _tracks.isEmpty ? '未在 $scanPath 找到音频文件' : null;
       });
+      if (initialIndex >= 0) {
+        await _playAt(initialIndex);
+      }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _error = '扫描目录失败：$e';
@@ -87,47 +140,83 @@ class _MusicAppPageState extends State<MusicAppPage> {
         lower.endsWith('.ogg');
   }
 
+  String _parentDirectory(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    final separator = normalized.lastIndexOf('/');
+    if (separator <= 0) {
+      return separator == 0 ? '/' : '.';
+    }
+    return normalized.substring(0, separator);
+  }
+
   Future<void> _playAt(int index) async {
     if (index < 0 || index >= _tracks.length) return;
 
+    final requestId = ++_playRequestId;
     try {
-      // 释放之前的句柄
-      if (_currentHandle != null) {
-        await _soloud.stop(_currentHandle!);
-        _currentHandle = null;
-      }
-
-      // 懒加载并缓存 AudioSource
-      if (_sources.length != _tracks.length) {
-        _sources
-          ..clear()
-          ..addAll(await Future.wait(_tracks.map((p) => _soloud.loadFile(p))));
-      }
-
-      final src = _sources[index];
-      final handle = await _soloud.play(src);
+      await _player.stop();
+      if (!mounted || requestId != _playRequestId) return;
       setState(() {
         _currentIndex = index;
-        _currentHandle = handle;
+        _position = Duration.zero;
+        _duration = Duration.zero;
+        _dragPositionMs = null;
       });
+      await _player.play(
+        DeviceFileSource(_tracks[index]),
+        volume: _volume,
+      );
+      await _resumeWhenPrepared(requestId);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('播放失败：$e')),
       );
     }
   }
 
+  Future<void> _resumeWhenPrepared(int requestId) async {
+    // The eLinux backend can pause the GStreamer pipeline when it reaches
+    // READY, racing with the first resume sent by AudioPlayer.play().
+    // Once metadata is queryable, resume once more to enter PLAYING reliably.
+    for (var attempt = 0; attempt < 20; attempt++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      if (!mounted ||
+          requestId != _playRequestId ||
+          _playerState != PlayerState.playing) {
+        return;
+      }
+
+      Duration? duration;
+      try {
+        duration = await _player.getDuration();
+      } catch (_) {
+        continue;
+      }
+      if (duration != null && duration > Duration.zero) {
+        final Duration preparedDuration = duration;
+        await _player.resume();
+        if (!mounted || requestId != _playRequestId) return;
+        setState(() => _duration = preparedDuration);
+        return;
+      }
+    }
+
+    // Some formats do not expose duration until playback has progressed.
+    if (mounted &&
+        requestId == _playRequestId &&
+        _playerState == PlayerState.playing) {
+      await _player.resume();
+    }
+  }
+
   @override
   void dispose() {
-    // 停止当前播放并释放资源
-    if (_currentHandle != null) {
-      _soloud.stop(_currentHandle!);
-      _currentHandle = null;
-    }
-    _soloud.disposeAllSources();
-    _soloud.deinit();
-    _posTimer?.cancel();
-    _vizTimer?.cancel();
+    _positionSubscription?.cancel();
+    _durationSubscription?.cancel();
+    _playerStateSubscription?.cancel();
+    _playerCompleteSubscription?.cancel();
+    unawaited(_player.dispose());
     super.dispose();
   }
 
@@ -185,9 +274,10 @@ class _MusicAppPageState extends State<MusicAppPage> {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    final playing = _currentHandle != null &&
-        _soloud.getIsValidVoiceHandle(_currentHandle!) &&
-        !_soloud.getPause(_currentHandle!);
+    if (_error != null) {
+      return Center(child: Text(_error!));
+    }
+    final playing = _playerState == PlayerState.playing;
     final bgTrack = (_currentIndex != null && _tracks.isNotEmpty)
         ? _tracks[_currentIndex!]
         : (_tracks.isNotEmpty ? _tracks.first : null);
@@ -234,10 +324,6 @@ class _MusicAppPageState extends State<MusicAppPage> {
                         ? _tracks[_currentIndex!]
                         : (_tracks.isNotEmpty ? _tracks.first : null),
                     size: MediaQuery.of(context).size.shortestSide * 0.6,
-                    cover: SvgPicture.asset(
-                      'source/app_ico/Music.svg',
-                      fit: BoxFit.contain,
-                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -256,10 +342,8 @@ class _MusicAppPageState extends State<MusicAppPage> {
                   curve: Curves.easeOut,
                   child: CustomPaint(
                     painter: SpectrumPainter(
-                      fft: _vizFft.isNotEmpty
-                          ? _vizFft
-                          : List<double>.filled(256, 0.0),
-                      color: Colors.white.withOpacity(0.9),
+                      fft: List<double>.filled(256, 0.0),
+                      color: Colors.white.withValues(alpha: 0.9),
                       bins: 16,
                     ),
                   ),
@@ -279,84 +363,18 @@ class _MusicAppPageState extends State<MusicAppPage> {
     return '${_two(m)}:${_two(s)}';
   }
 
-  List<double> _lastSamples = const [];
-  List<double> _getWaveSamples() {
-    try {
-      if (_currentHandle != null &&
-          _soloud.getIsValidVoiceHandle(_currentHandle!)) {
-        final audioData = AudioData(GetSamplesKind.wave);
-        audioData.updateSamples();
-        final samples = audioData.getAudioData(
-          alwaysReturnData: false,
-        );
-        audioData.dispose();
-        if (samples != null && samples.isNotEmpty) {
-          _lastSamples = samples;
-        }
-      }
-    } catch (_) {}
-    return _lastSamples.isNotEmpty
-        ? _lastSamples
-        : List<double>.filled(256, 0.0);
-  }
-
-  void _updateVisualizationSamples() {
-    try {
-      final audioData = AudioData(GetSamplesKind.linear);
-      audioData.updateSamples();
-      final linear = audioData.getAudioData(alwaysReturnData: false);
-      audioData.dispose();
-      if (linear != null && linear.isNotEmpty) {
-        final half = (linear.length / 2).floor();
-        final fft = linear.sublist(0, half);
-        final wave = linear.sublist(half);
-        if (_vizFft.isEmpty) {
-          _vizFft = fft;
-          _vizSamples = wave;
-        } else {
-          final lenF = fft.length;
-          final outF = List<double>.filled(lenF, 0.0);
-          for (int i = 0; i < lenF; i++) {
-            outF[i] = _smoothAlpha * fft[i] + (1 - _smoothAlpha) * _vizFft[i];
-          }
-          _vizFft = outF;
-
-          final lenW = wave.length;
-          final outW = List<double>.filled(lenW, 0.0);
-          for (int i = 0; i < lenW; i++) {
-            outW[i] =
-                _smoothAlpha * wave[i] + (1 - _smoothAlpha) * _vizSamples[i];
-          }
-          _vizSamples = outW;
-        }
-        if (mounted) setState(() {});
-      }
-    } catch (_) {}
-  }
-
   bool _isPlaying() {
-    return _currentHandle != null &&
-        _soloud.getIsValidVoiceHandle(_currentHandle!) &&
-        !_soloud.getPause(_currentHandle!);
-  }
-
-  bool _isPaused() {
-    return _currentHandle != null &&
-        _soloud.getIsValidVoiceHandle(_currentHandle!) &&
-        _soloud.getPause(_currentHandle!);
+    return _playerState == PlayerState.playing;
   }
 
   Widget? _buildControls(BuildContext context) {
     if (kIsWeb) {
       return null;
     }
-    final totalMs = (_currentIndex != null && _sources.length == _tracks.length)
-        ? _soloud.getLength(_sources[_currentIndex!]).inMilliseconds
-        : 0;
-    final posMs = (_currentHandle != null &&
-            _soloud.getIsValidVoiceHandle(_currentHandle!))
-        ? _soloud.getPosition(_currentHandle!).inMilliseconds
-        : 0;
+    // Some backends report a negative duration while the media metadata is
+    // still being loaded. Treat that sentinel value as an unknown duration.
+    final totalMs = _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 0;
+    final posMs = (_dragPositionMs ?? _position.inMilliseconds).round();
     final clampedPos = posMs.clamp(0, totalMs);
     return Container(
       color: Colors.white,
@@ -376,18 +394,23 @@ class _MusicAppPageState extends State<MusicAppPage> {
                       .clamp(0.0, totalMs > 0 ? totalMs.toDouble() : 1.0),
                   onChanged: totalMs > 0
                       ? (v) {
-                          setState(() {});
+                          setState(() => _dragPositionMs = v);
                         }
                       : null,
                   onChangeEnd: totalMs > 0
-                      ? (v) {
+                      ? (v) async {
                           try {
-                            if (_currentHandle != null) {
-                              _soloud.seek(_currentHandle!,
-                                  Duration(milliseconds: v.toInt()));
-                              setState(() {});
-                            }
+                            await _player.seek(
+                              Duration(milliseconds: v.round()),
+                            );
+                            if (!mounted) return;
+                            setState(() {
+                              _position = Duration(milliseconds: v.round());
+                              _dragPositionMs = null;
+                            });
                           } catch (e) {
+                            if (!context.mounted) return;
+                            setState(() => _dragPositionMs = null);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text('拖动失败：$e')),
                             );
@@ -407,6 +430,23 @@ class _MusicAppPageState extends State<MusicAppPage> {
             ),
           ),
           Row(
+            children: [
+              const Icon(Icons.volume_down),
+              Expanded(
+                child: Slider(
+                  min: 0,
+                  max: 1,
+                  value: _volume,
+                  onChanged: (value) {
+                    setState(() => _volume = value);
+                    unawaited(_player.setVolume(value));
+                  },
+                ),
+              ),
+              const Icon(Icons.volume_up),
+            ],
+          ),
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               IconButton(
@@ -424,29 +464,26 @@ class _MusicAppPageState extends State<MusicAppPage> {
                 },
               ),
               IconButton(
-                icon: Icon((_currentHandle != null &&
-                        !_soloud.getPause(_currentHandle!))
+                icon: Icon(_isPlaying()
                     ? Icons.pause_circle_filled
                     : Icons.play_circle_fill),
                 iconSize: 36,
                 color: Colors.blue,
-                tooltip: (_currentHandle != null &&
-                        !_soloud.getPause(_currentHandle!))
-                    ? '暂停'
-                    : '播放',
+                tooltip: _isPlaying() ? '暂停' : '播放',
                 onPressed: () async {
                   try {
-                    if (_currentHandle == null) {
-                      // 如果没有当前播放，播放当前索引或第一首
+                    if (_currentIndex == null ||
+                        _playerState == PlayerState.stopped ||
+                        _playerState == PlayerState.completed) {
                       final idx = _currentIndex ?? 0;
                       await _playAt(idx);
+                    } else if (_isPlaying()) {
+                      await _player.pause();
                     } else {
-                      // 切换暂停/继续
-                      final paused = _soloud.getPause(_currentHandle!);
-                      _soloud.setPause(_currentHandle!, !paused);
+                      await _player.resume();
                     }
-                    setState(() {});
                   } catch (e) {
+                    if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('操作失败：$e')),
                     );
@@ -458,11 +495,10 @@ class _MusicAppPageState extends State<MusicAppPage> {
                 tooltip: '停止',
                 onPressed: () async {
                   try {
-                    if (_currentHandle != null) {
-                      await _soloud.stop(_currentHandle!);
-                      _currentHandle = null;
-                    }
-                    setState(() {});
+                    ++_playRequestId;
+                    await _player.stop();
+                    if (!mounted) return;
+                    setState(() => _position = Duration.zero);
                   } catch (_) {}
                 },
               ),
@@ -522,10 +558,7 @@ class _MusicAppPageState extends State<MusicAppPage> {
                     itemBuilder: (_, i) {
                       final path = _tracks[i];
                       final name = path.split('/').last;
-                      final playing = _currentIndex == i &&
-                          _currentHandle != null &&
-                          _soloud.getIsValidVoiceHandle(_currentHandle!) &&
-                          !_soloud.getPause(_currentHandle!);
+                      final playing = _currentIndex == i && _isPlaying();
                       return ListTile(
                         leading: FutureBuilder(
                           future: readEmbeddedCover(path),
@@ -538,8 +571,8 @@ class _MusicAppPageState extends State<MusicAppPage> {
                               );
                             }
                             return const CircleAvatar(
-                              child: Icon(Icons.music_note),
                               radius: 18,
+                              child: Icon(Icons.music_note),
                             );
                           },
                         ),
@@ -547,6 +580,7 @@ class _MusicAppPageState extends State<MusicAppPage> {
                         trailing: playing ? const Icon(Icons.equalizer) : null,
                         onTap: () async {
                           await _playAt(i);
+                          if (!ctx.mounted) return;
                           Navigator.of(ctx).pop();
                         },
                       );

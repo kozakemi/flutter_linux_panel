@@ -1,19 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+
 import '../audio_cover.dart';
 
 class SpinningPlayer extends StatefulWidget {
   final bool playing;
-  final Widget? cover;
   final double size;
   final String? trackPath;
 
   const SpinningPlayer(
-      {super.key,
-      required this.playing,
-      this.cover,
-      this.size = 260,
-      this.trackPath});
+      {super.key, required this.playing, this.size = 260, this.trackPath});
 
   @override
   State<SpinningPlayer> createState() => _SpinningPlayerState();
@@ -55,7 +50,6 @@ class _SpinningPlayerState extends State<SpinningPlayer>
   @override
   Widget build(BuildContext context) {
     final size = widget.size;
-    final hasFallback = widget.cover != null;
     return SizedBox(
       width: size,
       height: size,
@@ -68,10 +62,16 @@ class _SpinningPlayerState extends State<SpinningPlayer>
             final coverBytes = snapshot.data;
             final child = (coverBytes != null)
                 ? Image.memory(coverBytes, fit: BoxFit.cover)
-                : (hasFallback
-                    ? widget.cover!
-                    : SvgPicture.asset('source/app_ico/Music.svg',
-                        fit: BoxFit.cover));
+                : ColoredBox(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    child: Center(
+                      child: Icon(
+                        Icons.music_note_rounded,
+                        size: size * 0.42,
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  );
             return ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: SizedBox(

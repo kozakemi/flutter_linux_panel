@@ -20,35 +20,18 @@ import 'package:flutter/foundation.dart';
 import '../models/wifi_models.dart';
 import 'wifi_service_interface.dart';
 import 'native_wifi_service.dart';
-import 'websocket_wifi_adapter.dart';
-import 'debug_service.dart';
 
-/// WiFi 服务提供模式
-enum WiFiServiceMode {
-  /// 原生 D-Bus 模式
-  native,
-  /// WebSocket 后端模式
-  websocket,
-}
-
-/// WiFi 服务提供者
-/// 
-/// 单例模式，管理 WiFi 服务的实例化和切换
-/// 根据 DebugService 中的配置选择使用原生或 WebSocket 实现
+/// WiFi 服务提供者，固定使用 dbus_wifi 与 NetworkManager 通信。
 class WiFiServiceProvider extends ChangeNotifier {
   static final WiFiServiceProvider instance = WiFiServiceProvider._();
   WiFiServiceProvider._();
 
   WiFiServiceInterface? _currentService;
-  WiFiServiceMode _currentMode = WiFiServiceMode.native;
   bool _initialized = false;
   String? _initError;
 
   /// 当前使用的服务
   WiFiServiceInterface? get currentService => _currentService;
-
-  /// 当前模式
-  WiFiServiceMode get currentMode => _currentMode;
 
   /// 是否已初始化
   bool get isInitialized => _initialized;
@@ -65,71 +48,23 @@ class WiFiServiceProvider extends ChangeNotifier {
   bool get isScanning => _currentService?.isScanning ?? false;
   bool get isConnecting => _currentService?.isConnecting ?? false;
 
-  Stream<WiFiStatus> get statusStream => 
+  Stream<WiFiStatus> get statusStream =>
       _currentService?.statusStream ?? const Stream.empty();
-  Stream<WiFiScanResult> get scanResultStream => 
+  Stream<WiFiScanResult> get scanResultStream =>
       _currentService?.scanResultStream ?? const Stream.empty();
-  Stream<bool> get scanningStream => 
+  Stream<bool> get scanningStream =>
       _currentService?.scanningStream ?? const Stream.empty();
-  Stream<bool> get connectingStream => 
+  Stream<bool> get connectingStream =>
       _currentService?.connectingStream ?? const Stream.empty();
 
-  /// 初始化服务提供者
-  /// 
-  /// 根据 DebugService 配置决定使用哪种实现
+  /// 初始化 D-Bus WiFi 服务。
   Future<void> initialize() async {
     if (_initialized) return;
 
     developer.log('初始化 WiFi 服务提供者', name: 'WiFiServiceProvider');
-
-    final useNative = DebugService.instance.useNativeWiFi;
-    
-    if (useNative) {
-      // 优先尝试原生实现
-      await _initializeNative();
-    } else {
-      // 使用 WebSocket 实现
-      await _initializeWebSocket();
-    }
-
+    await _initializeNative();
     _initialized = true;
     notifyListeners();
-  }
-
-  /// 切换到原生模式
-  Future<bool> switchToNative() async {
-    if (_currentMode == WiFiServiceMode.native && _currentService != null) {
-      return true;
-    }
-
-    developer.log('切换到原生 WiFi 服务', name: 'WiFiServiceProvider');
-
-    // 释放当前服务
-    await _currentService?.dispose();
-    _currentService = null;
-
-    // 初始化原生服务
-    final success = await _initializeNative();
-    notifyListeners();
-    return success;
-  }
-
-  /// 切换到 WebSocket 模式
-  Future<bool> switchToWebSocket() async {
-    if (_currentMode == WiFiServiceMode.websocket && _currentService != null) {
-      return true;
-    }
-
-    developer.log('切换到 WebSocket WiFi 服务', name: 'WiFiServiceProvider');
-
-    // 释放当前服务
-    await _currentService?.dispose();
-    _currentService = null;
-
-    // 初始化 WebSocket 服务
-    final success = await _initializeWebSocket();
-    notifyListeners();
-    return success;
   }
 
   /// 初始化原生服务
@@ -141,43 +76,13 @@ class WiFiServiceProvider extends ChangeNotifier {
       await nativeService.initialize();
 
       _currentService = nativeService;
-      _currentMode = WiFiServiceMode.native;
       _initError = null;
 
       developer.log('原生 WiFi 服务初始化成功', name: 'WiFiServiceProvider');
       return true;
     } catch (e, stackTrace) {
       developer.log(
-        '原生 WiFi 服务初始化失败，回退到 WebSocket: $e',
-        name: 'WiFiServiceProvider',
-        error: e,
-        stackTrace: stackTrace,
-      );
-
-      _initError = e.toString();
-
-      // 回退到 WebSocket
-      return await _initializeWebSocket();
-    }
-  }
-
-  /// 初始化 WebSocket 服务
-  Future<bool> _initializeWebSocket() async {
-    try {
-      developer.log('初始化 WebSocket WiFi 服务', name: 'WiFiServiceProvider');
-
-      final wsAdapter = WebSocketWiFiAdapter();
-      await wsAdapter.initialize();
-
-      _currentService = wsAdapter;
-      _currentMode = WiFiServiceMode.websocket;
-      _initError = null;
-
-      developer.log('WebSocket WiFi 服务初始化成功', name: 'WiFiServiceProvider');
-      return true;
-    } catch (e, stackTrace) {
-      developer.log(
-        'WebSocket WiFi 服务初始化失败: $e',
+        '原生 WiFi 服务初始化失败: $e',
         name: 'WiFiServiceProvider',
         error: e,
         stackTrace: stackTrace,

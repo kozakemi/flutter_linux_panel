@@ -35,7 +35,7 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
   BluetoothAdapterStatus _adapterStatus = BluetoothAdapterStatus.empty();
   List<BluetoothDevice> _devices = [];
   bool _isScanning = false;
-  bool _hasAdapter = false;  // 是否有蓝牙适配器
+  bool _hasAdapter = false; // 是否有蓝牙适配器
 
   StreamSubscription? _adapterStatusSubscription;
   StreamSubscription? _scanResultSubscription;
@@ -80,7 +80,7 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
       // 检查是否有蓝牙适配器
       final adapterStatus = _bluetoothService.adapterStatus;
       final hasAdapter = adapterStatus.address.isNotEmpty;
-      
+
       if (mounted) {
         setState(() {
           _hasAdapter = hasAdapter;
@@ -133,7 +133,6 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
 
       // 获取当前状态
       _refreshStatus();
-
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -365,7 +364,9 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
     return Icon(
       Icons.bluetooth,
       size: 48,
-      color: _adapterStatus.powered ? Colors.blue : Colors.grey,
+      color: _adapterStatus.powered
+          ? Theme.of(context).colorScheme.onSurface
+          : Colors.grey,
     );
   }
 
@@ -435,19 +436,23 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
                 children: [
                   _bluetoothIcon(),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           '蓝牙',
                           style: TextStyle(
                               fontSize: 18, fontWeight: FontWeight.w600),
                         ),
-                        SizedBox(height: 6),
+                        const SizedBox(height: 6),
                         Text(
                           '连接蓝牙设备，如耳机、键盘、鼠标等外设',
-                          style: TextStyle(color: Colors.black54, height: 1.35),
+                          style: TextStyle(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            height: 1.35,
+                          ),
                         ),
                       ],
                     ),
@@ -496,103 +501,107 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
                   value: _adapterStatus.powered,
                   onChanged: (v) => _toggleBluetooth(v),
                 ),
-            ),
-          ]),
-
-          const SizedBox(height: 24),
-
-          // 已连接的设备
-          if (_adapterStatus.powered) ...[
-            // 已连接
-            if (_devices.any((d) => d.connected)) ...[
-              _sectionHeader('已连接'),
-              _section(
-                _devices.where((d) => d.connected).map((device) => _buildDeviceTile(device)).toList(),
               ),
-              const SizedBox(height: 24),
-            ],
+            ]),
 
-            // 已配对但未连接的设备
-            if (_devices.any((d) => d.paired && !d.connected)) ...[
-              _sectionHeader('我的设备'),
-              _section(
-                _devices
-                    .where((d) => d.paired && !d.connected)
-                    .map((device) => _buildDeviceTile(device))
-                    .toList(),
-              ),
-              const SizedBox(height: 24),
-            ],
+            const SizedBox(height: 24),
 
-            // 可用设备标题
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Row(
-                children: [
-                  Text(
-                    '可用设备',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  if (_isScanning) ...[
-                    const SizedBox(width: 8),
-                    const SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '扫描中...',
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+            // 已连接的设备
+            if (_adapterStatus.powered) ...[
+              // 已连接
+              if (_devices.any((d) => d.connected)) ...[
+                _sectionHeader('已连接'),
+                _section(
+                  _devices
+                      .where((d) => d.connected)
+                      .map((device) => _buildDeviceTile(device))
+                      .toList(),
+                ),
+                const SizedBox(height: 24),
+              ],
 
-            // 可用设备列表（未配对的设备）
-            if (_devices.any((d) => !d.paired))
-              _section(
-                _devices.where((d) => !d.paired)
-                    .map((device) => _buildDeviceTile(device))
-                    .toList(),
-              )
-            else if (_isScanning)
-              const Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else
+              // 已配对但未连接的设备
+              if (_devices.any((d) => d.paired && !d.connected)) ...[
+                _sectionHeader('我的设备'),
+                _section(
+                  _devices
+                      .where((d) => d.paired && !d.connected)
+                      .map((device) => _buildDeviceTile(device))
+                      .toList(),
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              // 可用设备标题
               Padding(
-                padding: const EdgeInsets.all(32),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Icon(Icons.bluetooth_searching,
-                          size: 48, color: Colors.grey.shade400),
-                      const SizedBox(height: 16),
-                      Text(
-                        '未发现可用设备',
-                        style: TextStyle(color: Colors.grey.shade600),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Row(
+                  children: [
+                    Text(
+                      '可用设备',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: _startScan,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('开始扫描'),
+                    ),
+                    if (_isScanning) ...[
+                      const SizedBox(width: 8),
+                      const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '扫描中...',
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
-                  ),
+                  ],
                 ),
               ),
-          ],
+
+              // 可用设备列表（未配对的设备）
+              if (_devices.any((d) => !d.paired))
+                _section(
+                  _devices
+                      .where((d) => !d.paired)
+                      .map((device) => _buildDeviceTile(device))
+                      .toList(),
+                )
+              else if (_isScanning)
+                const Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.bluetooth_searching,
+                            size: 48, color: Colors.grey.shade400),
+                        const SizedBox(height: 16),
+                        Text(
+                          '未发现可用设备',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: _startScan,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('开始扫描'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
           ], // else _hasAdapter
         ],
       ),
@@ -613,12 +622,13 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
     return ListTile(
       leading: Icon(
         _getDeviceIcon(device),
-        color: device.connected ? Colors.blue : null,
+        color:
+            device.connected ? Theme.of(context).colorScheme.onSurface : null,
       ),
       title: Text(device.displayName),
       subtitle: Text(subtitle),
       trailing: device.connected
-          ? const Icon(Icons.check, color: Colors.blue)
+          ? Icon(Icons.check, color: Theme.of(context).colorScheme.onSurface)
           : const Icon(Icons.chevron_right, size: 20),
       onTap: () {
         if (device.connected) {
@@ -697,7 +707,10 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(_getDeviceIcon(device), color: Colors.blue),
+            Icon(
+              _getDeviceIcon(device),
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -722,7 +735,8 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
               const SizedBox(height: 12),
               _buildDetailRow('类型', _deviceTypeName(device.deviceType)),
               const SizedBox(height: 12),
-              _buildDetailRow('信号强度', '${device.rssi} dBm (${device.signalPercentage}%)'),
+              _buildDetailRow(
+                  '信号强度', '${device.rssi} dBm (${device.signalPercentage}%)'),
               const SizedBox(height: 12),
               _buildDetailRow('配对状态', device.paired ? '已配对' : '未配对'),
               const SizedBox(height: 12),

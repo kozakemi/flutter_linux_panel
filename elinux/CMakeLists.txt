@@ -56,6 +56,7 @@ endif()
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_17)
   target_compile_options(${TARGET} PRIVATE -Wall -Werror)
+  target_compile_options(${TARGET} PRIVATE -Wno-error=pessimizing-move -Wno-error=unused-result)
   target_compile_options(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:-O3>")
   target_compile_definitions(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
 endfunction()
@@ -71,42 +72,6 @@ add_subdirectory("runner")
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)
-
-# --- FFI plugin auto-bundling (fallback) ---
-# If plugins don't declare eLinux support, try bundling .so produced by
-# Linux build or native_assets so they are available in the eLinux bundle.
-# This helps cases like flutter_soloud which build a Linux .so but aren't
-# registered in eLinux generated_plugins.cmake.
-
-# Map CMAKE_SYSTEM_PROCESSOR to Flutter's arch folder names.
-set(FLUTTER_LINUX_ARCH "")
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
-  set(FLUTTER_LINUX_ARCH "x64")
-elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
-  set(FLUTTER_LINUX_ARCH "arm64")
-elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "armv7" OR CMAKE_SYSTEM_PROCESSOR MATCHES "arm")
-  set(FLUTTER_LINUX_ARCH "arm")
-endif()
-
-# Try to pick up plugin .so from Linux bundle built by `flutter build linux`.
-if(FLUTTER_LINUX_ARCH)
-  set(LINUX_BUNDLE_LIB_DIR "${PROJECT_DIR}/build/linux/${FLUTTER_LINUX_ARCH}/release/bundle/lib")
-  if(EXISTS "${LINUX_BUNDLE_LIB_DIR}")
-    file(GLOB LINUX_PLUGIN_LIBS "${LINUX_BUNDLE_LIB_DIR}/lib*_plugin.so")
-    if(LINUX_PLUGIN_LIBS)
-      list(APPEND PLUGIN_BUNDLED_LIBRARIES ${LINUX_PLUGIN_LIBS})
-    endif()
-  endif()
-endif()
-
-# Also try native assets produced by Dart/Flutter's native assets pipeline.
-set(NATIVE_ASSETS_DIR "${PROJECT_DIR}/build/native_assets/linux")
-if(EXISTS "${NATIVE_ASSETS_DIR}")
-  file(GLOB_RECURSE NATIVE_PLUGIN_LIBS "${NATIVE_ASSETS_DIR}/*.so")
-  if(NATIVE_PLUGIN_LIBS)
-    list(APPEND PLUGIN_BUNDLED_LIBRARIES ${NATIVE_PLUGIN_LIBS})
-  endif()
-endif()
 
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build

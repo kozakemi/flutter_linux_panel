@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class WaveformPainter extends CustomPainter {
@@ -21,7 +20,7 @@ class WaveformPainter extends CustomPainter {
     for (int i = 0; i < len; i++) {
       final x = (i * size.width / (len - 1)).roundToDouble();
       // Clamp amplitude, scale to 80% of half-height to avoid clipping
-      final amp = (samples[i]).clamp(-1.0, 1.0) as double;
+      final amp = (samples[i]).clamp(-1.0, 1.0);
       final y = (midY - amp * (size.height * 0.4)).roundToDouble();
       if (i == 0) {
         path.moveTo(x, y);
@@ -36,7 +35,7 @@ class WaveformPainter extends CustomPainter {
       ..lineTo(0, midY)
       ..close();
     final fillPaint = Paint()
-      ..color = color.withOpacity(0.18)
+      ..color = color.withValues(alpha: 0.18)
       ..style = PaintingStyle.fill;
     canvas.drawPath(fill, fillPaint);
 
@@ -48,4 +47,3 @@ class WaveformPainter extends CustomPainter {
     return oldDelegate.samples != samples || oldDelegate.color != color;
   }
 }
-

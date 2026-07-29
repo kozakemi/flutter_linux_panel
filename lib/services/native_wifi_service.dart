@@ -16,20 +16,21 @@ limitations under the License.
 
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:io';
 import 'package:dbus_wifi/dbus_wifi.dart' as dbus_wifi;
 import 'package:dbus_wifi/models/wifi_network.dart' as dbus_wifi_models;
 import '../models/wifi_models.dart';
 import 'wifi_service_interface.dart';
 
 /// 原生 WiFi 服务实现
-/// 
+///
 /// 使用 dbus_wifi 包通过 D-Bus 与 NetworkManager 通信
 class NativeWiFiService implements WiFiServiceInterface {
   static const String _serviceName = 'native_dbus';
 
   dbus_wifi.DbusWifi? _dbusWifi;
   bool _initialized = false;
-  bool _wifiEnabled = true;
+  bool _wifiEnabled = false;
 
   // 状态管理
   WiFiStatus? _currentStatus;
@@ -82,13 +83,14 @@ class NativeWiFiService implements WiFiServiceInterface {
 
     try {
       _dbusWifi = dbus_wifi.DbusWifi();
-      
+
       // 检查是否有 WiFi 设备
       final hasDevice = await _dbusWifi!.hasWifiDevice;
       if (!hasDevice) {
         throw Exception('未找到 WiFi 设备');
       }
 
+      _wifiEnabled = await _dbusWifi!.isWifiEnabled;
       _initialized = true;
       developer.log('原生 WiFi 服务初始化成功', name: 'NativeWiFiService');
 
@@ -129,18 +131,11 @@ class NativeWiFiService implements WiFiServiceInterface {
     try {
       developer.log('切换 WiFi: $enable', name: 'NativeWiFiService');
 
-      // dbus_wifi 没有直接的 enable/disable 方法
-      // 我们通过记录状态并在 disconnect 时使用来模拟
-      _wifiEnabled = enable;
-
-      if (!enable) {
-        // 禁用时断开连接
-        await _dbusWifi!.disconnect();
-      }
+      _wifiEnabled = await _dbusWifi!.setWifiEnabled(enable);
 
       // 更新状态
       await getStatus();
-      return true;
+      return _wifiEnabled == enable;
     } catch (e, stackTrace) {
       developer.log(
         '切换 WiFi 失败: $e',
@@ -162,17 +157,31 @@ class NativeWiFiService implements WiFiServiceInterface {
     try {
       developer.log('获取 WiFi 状态', name: 'NativeWiFiService');
 
+      _wifiEnabled = await _dbusWifi!.isWifiEnabled;
+      if (!_wifiEnabled) {
+        final status = const WiFiStatus(enabled: false, connected: false);
+        _updateStatus(status);
+        return status;
+      }
+
       final statusResult = await _dbusWifi!.getConnectionStatus();
-      final connectionStatus = statusResult['status'] as dbus_wifi.ConnectionStatus;
+      final connectionStatus =
+          statusResult['status'] as dbus_wifi.ConnectionStatus;
       final network = statusResult['network'] as dbus_wifi_models.WifiNetwork?;
 
-      final isConnected = connectionStatus == dbus_wifi.ConnectionStatus.connected;
+      final isConnected =
+          connectionStatus == dbus_wifi.ConnectionStatus.connected;
+      final addressInfo =
+          isConnected ? await _getIPv4AddressInfo() : const _IPv4AddressInfo();
 
       final status = WiFiStatus(
         enabled: _wifiEnabled,
         connected: isConnected,
         ssid: network?.ssid,
         bssid: network?.mac,
+        interface: addressInfo.interfaceName,
+        ip: addressInfo.localAddress,
+        gateway: addressInfo.gateway,
         signal: network?.strength,
         security: network != null ? _mapSecurityType(network.security) : null,
       );
@@ -188,6 +197,78 @@ class NativeWiFiService implements WiFiServiceInterface {
       );
       return null;
     }
+  }
+
+  Future<_IPv4AddressInfo> _getIPv4AddressInfo() async {
+    String? routeInterface;
+    String? gateway;
+    try {
+      final lines = await File('/proc/net/route').readAsLines();
+      for (final line in lines.skip(1)) {
+        final fields = line.trim().split(RegExp(r'\s+'));
+        if (fields.length < 4 || fields[1] != '00000000') continue;
+        final flags = int.tryParse(fields[3], radix: 16) ?? 0;
+        if ((flags & 0x1) == 0) continue;
+        final interfaceName = fields[0];
+        final isWireless = _isWirelessInterface(interfaceName);
+        if (routeInterface == null || isWireless) {
+          routeInterface = interfaceName;
+          gateway = _decodeRouteAddress(fields[2]);
+        }
+        if (isWireless) break;
+      }
+    } catch (_) {
+      // 没有默认路由时仍尝试从网络接口获取本机地址。
+    }
+
+    final interfaces = await NetworkInterface.list(
+      type: InternetAddressType.IPv4,
+      includeLoopback: false,
+      includeLinkLocal: false,
+    );
+    NetworkInterface? selected;
+    if (routeInterface != null) {
+      for (final interface in interfaces) {
+        if (interface.name == routeInterface) {
+          selected = interface;
+          break;
+        }
+      }
+    }
+    if (selected == null) {
+      for (final interface in interfaces) {
+        if (_isWirelessInterface(interface.name)) {
+          selected = interface;
+          break;
+        }
+      }
+    }
+    selected ??= interfaces.isEmpty ? null : interfaces.first;
+
+    final localAddress = selected == null || selected.addresses.isEmpty
+        ? null
+        : selected.addresses.first.address;
+    return _IPv4AddressInfo(
+      interfaceName: selected?.name ?? routeInterface,
+      localAddress: localAddress,
+      gateway: gateway,
+    );
+  }
+
+  String? _decodeRouteAddress(String hexadecimal) {
+    final value = int.tryParse(hexadecimal, radix: 16);
+    if (value == null || value == 0) return null;
+    return <int>[
+      value & 0xff,
+      (value >> 8) & 0xff,
+      (value >> 16) & 0xff,
+      (value >> 24) & 0xff,
+    ].join('.');
+  }
+
+  bool _isWirelessInterface(String name) {
+    final lowerName = name.toLowerCase();
+    return lowerName.startsWith('wlan') || lowerName.startsWith('wlp');
   }
 
   @override
@@ -206,11 +287,13 @@ class NativeWiFiService implements WiFiServiceInterface {
       developer.log('开始扫描 WiFi 网络', name: 'NativeWiFiService');
       _updateScanningState(true);
 
-      final networks = await _dbusWifi!.search(timeout: const Duration(seconds: 3));
+      final networks =
+          await _dbusWifi!.search(timeout: const Duration(seconds: 3));
 
       // 获取当前连接状态以标记已连接的网络
       final statusResult = await _dbusWifi!.getConnectionStatus();
-      final connectedNetwork = statusResult['network'] as dbus_wifi_models.WifiNetwork?;
+      final connectedNetwork =
+          statusResult['network'] as dbus_wifi_models.WifiNetwork?;
 
       // 获取已保存的网络
       final savedNetworks = await _dbusWifi!.getSavedNetworks();
@@ -254,7 +337,8 @@ class NativeWiFiService implements WiFiServiceInterface {
       final scanResult = WiFiScanResult(networks: wifiNetworks);
 
       _updateScanResult(scanResult);
-      developer.log('扫描完成，发现 ${wifiNetworks.length} 个网络', name: 'NativeWiFiService');
+      developer.log('扫描完成，发现 ${wifiNetworks.length} 个网络',
+          name: 'NativeWiFiService');
 
       return scanResult;
     } catch (e, stackTrace) {
@@ -287,7 +371,8 @@ class NativeWiFiService implements WiFiServiceInterface {
       _updateConnectingState(true);
 
       // 先扫描找到网络
-      final networks = await _dbusWifi!.search(timeout: const Duration(seconds: 2));
+      final networks =
+          await _dbusWifi!.search(timeout: const Duration(seconds: 2));
       final targetNetwork = networks.firstWhere(
         (n) => n.ssid == ssid,
         orElse: () => throw Exception('未找到网络: $ssid'),
@@ -390,4 +475,16 @@ class NativeWiFiService implements WiFiServiceInterface {
       _connectingController.add(connecting);
     }
   }
+}
+
+class _IPv4AddressInfo {
+  const _IPv4AddressInfo({
+    this.interfaceName,
+    this.localAddress,
+    this.gateway,
+  });
+
+  final String? interfaceName;
+  final String? localAddress;
+  final String? gateway;
 }

@@ -31,11 +31,6 @@ After build, script auto-collects arm64 runtime dependencies into
 `build/elinux/arm64/release/bundle/lib` and creates archive:
 `build/elinux/arm64/release/dist/demo1-elinux-arm64-*.tar.gz`.
 
-If `flutter_soloud` arm64 shared library is prebuilt in another path:
-``` shell
-./build_arm64_elinux.sh /abs/path/to/libflutter_soloud_plugin.so
-```
-
 ## Run 
 ### Show in weston
 ``` shell

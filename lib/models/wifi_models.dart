@@ -14,9 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// WiFi 数据模型，基于新的WebSocket架构和 WEBSOCKET_WIFI_API.md 文档定义
-
-import '../models/websocket_models.dart';
+// Linux WiFi 数据模型。
 
 /// WiFi 错误码枚举
 enum WiFiError {
@@ -208,6 +206,7 @@ class WiFiStatus {
   final String? bssid;
   final String? interface;
   final String? ip;
+  final String? gateway;
   final int? signal;
   final String? security;
   final int? channel;
@@ -220,6 +219,7 @@ class WiFiStatus {
     this.bssid,
     this.interface,
     this.ip,
+    this.gateway,
     this.signal,
     this.security,
     this.channel,
@@ -235,6 +235,7 @@ class WiFiStatus {
       bssid: json['bssid'] as String?,
       interface: json['interface'] as String?,
       ip: json['ip'] as String?,
+      gateway: json['gateway'] as String?,
       signal: json['signal'] as int?,
       security: json['security'] as String?,
       channel: json['channel'] as int?,
@@ -250,6 +251,7 @@ class WiFiStatus {
       if (bssid != null) 'bssid': bssid,
       if (interface != null) 'interface': interface,
       if (ip != null) 'ip': ip,
+      if (gateway != null) 'gateway': gateway,
       if (signal != null) 'signal': signal,
       if (security != null) 'security': security,
       if (channel != null) 'channel': channel,
@@ -265,6 +267,7 @@ class WiFiStatus {
     String? bssid,
     String? interface,
     String? ip,
+    String? gateway,
     int? signal,
     String? security,
     int? channel,
@@ -277,6 +280,7 @@ class WiFiStatus {
       bssid: bssid ?? this.bssid,
       interface: interface ?? this.interface,
       ip: ip ?? this.ip,
+      gateway: gateway ?? this.gateway,
       signal: signal ?? this.signal,
       security: security ?? this.security,
       channel: channel ?? this.channel,
@@ -345,154 +349,5 @@ class WiFiScanResult {
   /// 其他网络
   List<WiFiNetwork> get otherNetworks {
     return networks.where((n) => !n.recorded).toList();
-  }
-}
-
-/// WiFi 请求类型常量
-class WiFiRequestTypes {
-  // 按照 WEBSOCKET_WIFI_API.md 统一为 *_request 后缀
-  static const String toggle = 'wifi_enable_request';
-  static const String getStatus = 'wifi_status_request';
-  static const String scan = 'wifi_scan_request';
-  static const String connect = 'wifi_connect_request';
-  static const String disconnect = 'wifi_disconnect_request';
-}
-
-/// WiFi 响应类型常量
-class WiFiResponseTypes {
-  static const String enable = 'wifi_enable_response';
-  static const String status = 'wifi_status_response';
-  static const String scan = 'wifi_scan_response';
-  static const String connect = 'wifi_connect_response';
-  static const String disconnect = 'wifi_disconnect_response';
-}
-
-/// WiFi 事件类型常量
-class WiFiEventTypes {
-  static const String statusChanged = 'wifi_status_changed';
-  static const String scanCompleted = 'wifi_scan_completed';
-  static const String connectionChanged = 'wifi_connection_changed';
-}
-
-/// WiFi 请求构建器
-class WiFiRequestBuilder {
-  /// 创建开关WiFi请求
-  static WebSocketRequest createToggleRequest({
-    required bool enable,
-    String? requestId,
-  }) {
-    return WebSocketRequest(
-      requestId: requestId ?? 'req-${DateTime.now().millisecondsSinceEpoch}',
-      type: WiFiRequestTypes.toggle,
-      data: {'enable': enable},
-    );
-  }
-
-  /// 创建获取状态请求
-  static WebSocketRequest createGetStatusRequest({String? requestId}) {
-    return WebSocketRequest(
-      requestId: requestId ?? 'req-${DateTime.now().millisecondsSinceEpoch}',
-      type: WiFiRequestTypes.getStatus,
-      data: {},
-    );
-  }
-
-  /// 创建扫描请求
-  static WebSocketRequest createScanRequest({String? requestId}) {
-    return WebSocketRequest(
-      requestId: requestId ?? 'req-${DateTime.now().millisecondsSinceEpoch}',
-      type: WiFiRequestTypes.scan,
-      data: {'rescan': true},
-    );
-  }
-
-  /// 创建连接请求
-  static WebSocketRequest createConnectRequest({
-    required String ssid,
-    String? password,
-    String? requestId,
-  }) {
-    final data = <String, dynamic>{'ssid': ssid};
-    if (password != null && password.isNotEmpty) {
-      data['password'] = password;
-    }
-
-    return WebSocketRequest(
-      requestId: requestId ?? 'req-${DateTime.now().millisecondsSinceEpoch}',
-      type: WiFiRequestTypes.connect,
-      data: data,
-    );
-  }
-
-  /// 创建断开连接请求
-  static WebSocketRequest createDisconnectRequest({String? requestId}) {
-    return WebSocketRequest(
-      requestId: requestId ?? 'req-${DateTime.now().millisecondsSinceEpoch}',
-      type: WiFiRequestTypes.disconnect,
-      data: {},
-    );
-  }
-}
-
-/// WiFi 响应解析器
-class WiFiResponseParser {
-  /// 解析WiFi状态响应
-  static WiFiStatus? parseStatusResponse(WebSocketResponse response) {
-    // 校验类型
-    if (response.type != WiFiResponseTypes.status) {
-      return null;
-    }
-    if (!response.success || response.data.isEmpty) {
-      return null;
-    }
-
-    return WiFiStatus.fromJson(response.data);
-  }
-
-  /// 解析扫描结果响应
-  static WiFiScanResult? parseScanResponse(WebSocketResponse response) {
-    // 校验类型
-    if (response.type != WiFiResponseTypes.scan) {
-      return null;
-    }
-    if (!response.success || response.data.isEmpty) {
-      return null;
-    }
-
-    return WiFiScanResult.fromJson(response.data);
-  }
-
-  /// 解析启用/禁用响应，返回最终 enabled 值
-  static bool? parseEnableResponse(WebSocketResponse response) {
-    if (response.type != WiFiResponseTypes.enable) {
-      return null;
-    }
-    if (!response.success) {
-      return null;
-    }
-    final enabled =
-        (response.data['enable'] ?? response.data['enabled']) as bool?;
-    return enabled;
-  }
-
-  /// 解析连接响应，返回是否成功
-  static bool? parseConnectResponse(WebSocketResponse response) {
-    if (response.type != WiFiResponseTypes.connect) {
-      return null;
-    }
-    return response.success ? true : false;
-  }
-
-  /// 解析断开响应，返回是否成功
-  static bool? parseDisconnectResponse(WebSocketResponse response) {
-    if (response.type != WiFiResponseTypes.disconnect) {
-      return null;
-    }
-    return response.success ? true : false;
-  }
-
-  /// 解析错误信息
-  static WiFiError parseError(WebSocketResponse response) {
-    return WiFiError.fromCode(response.errorCode);
   }
 }

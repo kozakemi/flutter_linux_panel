@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class SpectrumPainter extends CustomPainter {
@@ -15,12 +14,12 @@ class SpectrumPainter extends CustomPainter {
     final barWidth = size.width / barCount;
     final paint = Paint()
       ..color = color
-      ..style = PaintingStyle.fill
-      ;
+      ..style = PaintingStyle.fill;
 
     for (int i = 0; i < barCount; i++) {
       final start = (i * fft.length / barCount).floor();
-      final end = (((i + 1) * fft.length / barCount).ceil()).clamp(start + 1, fft.length);
+      final end = (((i + 1) * fft.length / barCount).ceil())
+          .clamp(start + 1, fft.length);
       double sum = 0.0;
       int count = 0;
       for (int j = start; j < end; j++) {
@@ -29,7 +28,7 @@ class SpectrumPainter extends CustomPainter {
         count++;
       }
       final avg = count > 0 ? sum / count : 0.0;
-      final amp = avg.clamp(0.0, 1.0) as double;
+      final amp = avg.clamp(0.0, 1.0);
       final h = amp * size.height;
       final x = i * barWidth;
       final rect = RRect.fromRectAndRadius(

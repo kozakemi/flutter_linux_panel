@@ -3,6 +3,8 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  audioplayers_elinux
+  video_player_elinux
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

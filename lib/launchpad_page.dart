@@ -15,26 +15,25 @@ limitations under the License.
 */
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'launchpad/music_app.dart';
+
+import 'launchpad/file_manager_page.dart';
+import 'launchpad/jlink_server_page.dart';
+import 'launchpad/serial_preview_page.dart';
 import 'services/display_service.dart';
 
-/**
- * 图标组件
- * 上部图片 下部居中图标名称
- */
+/// 启动台应用图标，上部图标、下部居中显示名称。
 class IconItem extends StatelessWidget {
-  final String iconPath; // 改为String类型存储SVG路径
+  final IconData icon;
   final String label;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   const IconItem({
-    Key? key,
-    required this.iconPath,
+    super.key,
+    required this.icon,
     required this.label,
     this.onTap,
     this.onLongPress,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -45,15 +44,18 @@ class IconItem extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // 使用 SvgPicture 显示 SVG 图标
-          SvgPicture.asset(
-            iconPath,
-            width: 48,
-            height: 48,
-            // colorFilter: const ColorFilter.mode(
-            //   Colors.blue,
-            //   BlendMode.srcIn,
-            // ),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              icon,
+              size: 32,
+              color: Theme.of(context).colorScheme.onPrimaryContainer,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -73,36 +75,31 @@ class IconItem extends StatelessWidget {
 }
 
 class LaunchpadPage extends StatelessWidget {
-  const LaunchpadPage({Key? key}) : super(key: key);
+  const LaunchpadPage({super.key});
 
-  // 定义SVG图标路径（使用String类型）
-  final List<String> iconPaths = const [
-    'source/app_ico/FilesandFolders.svg',
-    'source/app_ico/Music.svg',
-    'source/app_ico/video-02-1.svg',
+  final List<IconData> icons = const [
+    Icons.folder_outlined,
+    Icons.developer_board_outlined,
+    Icons.usb_outlined,
   ];
 
   final List<String> labels = const [
     '文件管理器',
-    '音乐播放器',
-    '视频播放器',
+    'J-Link Server',
+    '串口预览',
   ];
 
   List<VoidCallback> getOnTapCallbacks(BuildContext context) {
     return [
-      () => {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('文件管理器暂未实现')),
-            )
-          },
       () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const MusicAppPage()),
+            MaterialPageRoute(builder: (_) => const FileManagerPage()),
           ),
-      () => {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('视频播放器暂未实现')),
-            )
-          },
+      () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const JLinkServerPage()),
+          ),
+      () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const SerialPreviewPage()),
+          ),
     ];
   }
 
@@ -141,10 +138,10 @@ class LaunchpadPage extends StatelessWidget {
             crossAxisSpacing: 20, // 水平间距
             childAspectRatio: 0.8, // 宽高比
           ),
-          itemCount: iconPaths.length,
+          itemCount: icons.length,
           itemBuilder: (context, index) {
             return IconItem(
-              iconPath: iconPaths[index],
+              icon: icons[index],
               label: labels[index],
               onTap: onTapCallbacks[index], // 从列表中获取回调
               onLongPress: onLongPressCallbacks[index], // 从列表中获取回调

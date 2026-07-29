@@ -21,13 +21,14 @@ import 'package:intl/intl.dart';
 import 'settings_page.dart';
 import 'calendar_page.dart';
 import 'launchpad_page.dart';
-import 'live2d_page.dart';
 import 'global_tap_ripple.dart';
 import 'services/display_service.dart';
 import 'services/theme_service.dart';
-import 'services/websocket_service_manager.dart';
-import 'services/wifi_module.dart';
+import 'services/wallpaper_service.dart';
+import 'services/remote_web_service.dart';
 import 'services/debug_service.dart';
+import 'services/bluetooth_service.dart';
+import 'services/wifi_service_provider.dart';
 import 'models/wifi_models.dart';
 import 'widgets/performance_overlay.dart';
 
@@ -42,18 +43,25 @@ void main() async {
 
   // 初始化显示服务
   await DisplayService.instance.initialize();
-  
+
   // 初始化主题服务
   await ThemeService.instance.initialize();
-  
+  await WallpaperService.instance.initialize();
+  await RemoteWebService.instance.initialize();
+
   // 初始化调试服务
   await DebugService.instance.initialize();
 
-  // 初始化 WebSocket 服务（在应用启动阶段）
+  // 初始化 Linux 系统服务。设备缺失时允许应用继续启动。
   try {
-    await WebSocketServiceManager.instance.initialize();
+    await WiFiServiceProvider.instance.initialize();
   } catch (_) {
-    // 允许离线模式继续运行
+    // 允许无 Wi-Fi 设备的环境继续运行
+  }
+  try {
+    await BluetoothService.instance.initialize();
+  } catch (_) {
+    // 允许无蓝牙适配器的环境继续运行
   }
 
   // debugRepaintRainbowEnabled = true;
@@ -65,37 +73,38 @@ class MyApp extends StatelessWidget {
 
   // 构建主题数据
   ThemeData _buildTheme(double scaleFactor, Brightness brightness) {
-        final dens = ((scaleFactor - 1.0) * 4.0).clamp(0.0, 4.0);
-        final iconSize = 24.0 * scaleFactor;
-        final toolbarHeight = 56.0 * scaleFactor;
-    
+    final dens = ((scaleFactor - 1.0) * 4.0).clamp(0.0, 4.0);
+    final iconSize = 24.0 * scaleFactor;
+    final toolbarHeight = 56.0 * scaleFactor;
+
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: Colors.blue,
+      seedColor: ThemeService.instance.seedColor,
       brightness: brightness,
     );
-    
+
     return ThemeData(
       colorScheme: colorScheme,
-            useMaterial3: true,
-            fontFamily: 'HarmonyOS Sans SC', // 应用中文字体
-            visualDensity: VisualDensity(horizontal: dens, vertical: dens),
-            iconTheme: IconThemeData(size: iconSize),
-            iconButtonTheme: IconButtonThemeData(
-              style: IconButton.styleFrom(
-                iconSize: iconSize,
-                padding: EdgeInsets.all(8.0 * scaleFactor),
-                minimumSize: Size(
+      useMaterial3: true,
+      fontFamily: 'HarmonyOS Sans SC', // 应用中文字体
+      visualDensity: VisualDensity(horizontal: dens, vertical: dens),
+      iconTheme: IconThemeData(size: iconSize),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          iconSize: iconSize,
+          padding: EdgeInsets.all(8.0 * scaleFactor),
+          minimumSize: Size(
             kMinInteractiveDimension * scaleFactor,
-                  kMinInteractiveDimension * scaleFactor,
-                ),
-                tapTargetSize: MaterialTapTargetSize.padded,
-              ),
-            ),
-            appBarTheme: AppBarTheme(
-              toolbarHeight: toolbarHeight,
+            kMinInteractiveDimension * scaleFactor,
+          ),
+          tapTargetSize: MaterialTapTargetSize.padded,
+        ),
+      ),
+      appBarTheme: AppBarTheme(
+        toolbarHeight: toolbarHeight,
         iconTheme: IconThemeData(size: iconSize, color: colorScheme.onSurface),
-        actionsIconTheme: IconThemeData(size: iconSize, color: colorScheme.onSurface),
-            ),
+        actionsIconTheme:
+            IconThemeData(size: iconSize, color: colorScheme.onSurface),
+      ),
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
           TargetPlatform.linux: ZoomPageTransitionsBuilder(),
@@ -115,11 +124,12 @@ class MyApp extends StatelessWidget {
       listenable: Listenable.merge([
         DisplayService.instance,
         ThemeService.instance,
+        WallpaperService.instance,
       ]),
       builder: (context, child) {
         final scaleFactor = DisplayService.instance.scaleFactor;
         final themeMode = ThemeService.instance.materialThemeMode;
-        
+
         return MaterialApp(
           title: 'Anime Clock',
           // debugShowCheckedModeBanner: false,
@@ -161,17 +171,18 @@ class _ClockScreenState extends State<ClockScreen>
   // 使用ValueNotifier替代直接的状态变量，这样可以只在值变化时通知监听者
   final timeNotifier = ValueNotifier<DateTime>(DateTime.now());
   final wifiStatusNotifier = ValueNotifier<bool>(false);
+  final bluetoothStatusNotifier = ValueNotifier<bool>(false);
   final mqttStatusNotifier = ValueNotifier<bool>(false);
 
   late Timer _timeTimer;
-  late Timer _statusTimer;
   Timer? _wifiPollTimer;
   StreamSubscription<WiFiStatus>? _wifiStatusSubscription;
+  StreamSubscription? _bluetoothStatusSubscription;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
 
     // 初始化时间
     timeNotifier.value = DateTime.now();
@@ -185,23 +196,29 @@ class _ClockScreenState extends State<ClockScreen>
       }
     });
 
-    // 订阅 WiFi 模块状态流，驱动主界面图标
-    final wifiModule = WebSocketServiceManager.instance.wifiModule;
-    if (wifiModule != null) {
-      _wifiStatusSubscription = wifiModule.statusStream.listen((status) {
+    // 订阅 D-Bus Wi-Fi 状态流，驱动主界面图标
+    final wifiService = WiFiServiceProvider.instance;
+    if (wifiService.isInitialized) {
+      _wifiStatusSubscription = wifiService.statusStream.listen((status) {
         final connected = status.enabled && status.connected;
         if (wifiStatusNotifier.value != connected) {
           wifiStatusNotifier.value = connected;
         }
       });
-      // 获取一次初始状态
-      wifiModule.getStatus().catchError((_) => null);
+      wifiService.getStatus().catchError((_) => null);
 
-      // 在主页周期性轮询 WiFi 状态（每 10 秒）
       _wifiPollTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-        wifiModule.getStatus().catchError((_) => null);
+        wifiService.getStatus().catchError((_) => null);
       });
     }
+
+    // 蓝牙图标使用 BlueZ 的真实适配器状态。
+    final bluetoothService = BluetoothService.instance;
+    bluetoothStatusNotifier.value = bluetoothService.isPowered;
+    _bluetoothStatusSubscription =
+        bluetoothService.adapterStatusStream.listen((status) {
+      bluetoothStatusNotifier.value = status.powered;
+    });
   }
 
   @override
@@ -211,8 +228,10 @@ class _ClockScreenState extends State<ClockScreen>
     // 取消 WiFi 轮询定时器
     _wifiPollTimer?.cancel();
     _wifiStatusSubscription?.cancel();
+    _bluetoothStatusSubscription?.cancel();
     timeNotifier.dispose();
     wifiStatusNotifier.dispose();
+    bluetoothStatusNotifier.dispose();
     mqttStatusNotifier.dispose();
     _tabController.dispose();
     super.dispose();
@@ -229,60 +248,62 @@ class _ClockScreenState extends State<ClockScreen>
     final sidePanelWidth = screenWidth * sidePanelWidthRatio;
 
     return Scaffold(
-      body: Container(
-        // 背景图片不需要频繁重建，放在最外层
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage(
-                'source/background/1622002094_B8946A9D258FB08AAF74435234C70DF7.jpg'),
-            fit: BoxFit.cover,
+      body: ListenableBuilder(
+        listenable: WallpaperService.instance,
+        builder: (context, child) => Container(
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: WallpaperService.instance.imageProvider,
+              fit: BoxFit.cover,
+            ),
           ),
-        ),
-        child: Stack(
-          children: [
-            // 底部装饰2 - 菱形和状态图标组合组件
-            Positioned(
-              left: 0,
-              right: 0,
-              top: screenHeight * 0.6,
-              height: screenHeight * (0.1 + 0.15),
-              // 使用独立组件，只在连接状态变化时更新
-              child: StatusIconsComponent(
-                screenWidth: screenWidth,
-                screenHeight: screenHeight,
-                sidePanelWidth: sidePanelWidth,
-                wifiStatusNotifier: wifiStatusNotifier,
-                mqttStatusNotifier: mqttStatusNotifier,
+          child: Stack(
+            children: [
+              // 底部装饰2 - 菱形和状态图标组合组件
+              Positioned(
+                left: 0,
+                right: 0,
+                top: screenHeight * 0.6,
+                height: screenHeight * (0.1 + 0.15),
+                // 使用独立组件，只在连接状态变化时更新
+                child: StatusIconsComponent(
+                  screenWidth: screenWidth,
+                  screenHeight: screenHeight,
+                  sidePanelWidth: sidePanelWidth,
+                  wifiStatusNotifier: wifiStatusNotifier,
+                  bluetoothStatusNotifier: bluetoothStatusNotifier,
+                  mqttStatusNotifier: mqttStatusNotifier,
+                ),
               ),
-            ),
 
-            // 底部梯形和日期时间组合组件
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: sidePanelWidth,
-              height: screenHeight * 0.3,
-              // 使用独立组件，只在时间变化时更新
-              child: DateTimeComponent(
-                screenWidth: screenWidth,
-                screenHeight: screenHeight,
-                sidePanelWidth: sidePanelWidth,
-                timeNotifier: timeNotifier,
+              // 底部梯形和日期时间组合组件
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: sidePanelWidth,
+                height: screenHeight * 0.3,
+                // 使用独立组件，只在时间变化时更新
+                child: DateTimeComponent(
+                  screenWidth: screenWidth,
+                  screenHeight: screenHeight,
+                  sidePanelWidth: sidePanelWidth,
+                  timeNotifier: timeNotifier,
+                ),
               ),
-            ),
 
-            // 右侧垂直TabBar - 不需要频繁更新
-            Positioned(
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: sidePanelWidth,
-              child: SideTabBar(
-                tabController: _tabController,
-                screenWidth: screenWidth,
+              // 右侧垂直TabBar - 不需要频繁更新
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                width: sidePanelWidth,
+                child: SideTabBar(
+                  tabController: _tabController,
+                  screenWidth: screenWidth,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -295,6 +316,7 @@ class StatusIconsComponent extends StatelessWidget {
   final double screenHeight;
   final double sidePanelWidth;
   final ValueNotifier<bool> wifiStatusNotifier;
+  final ValueNotifier<bool> bluetoothStatusNotifier;
   final ValueNotifier<bool> mqttStatusNotifier;
 
   const StatusIconsComponent({
@@ -303,6 +325,7 @@ class StatusIconsComponent extends StatelessWidget {
     required this.screenHeight,
     required this.sidePanelWidth,
     required this.wifiStatusNotifier,
+    required this.bluetoothStatusNotifier,
     required this.mqttStatusNotifier,
   });
 
@@ -319,10 +342,10 @@ class StatusIconsComponent extends StatelessWidget {
           ),
         ),
 
-        // WiFi/蓝牙状态图标 - 使用ValueListenableBuilder只在状态变化时更新
+        // 蓝牙状态图标
         ValueListenableBuilder<bool>(
-          valueListenable: wifiStatusNotifier,
-          builder: (context, wifiConnected, child) {
+          valueListenable: bluetoothStatusNotifier,
+          builder: (context, bluetoothEnabled, child) {
             return Positioned(
               left: (screenWidth - sidePanelWidth) / 3 -
                   (screenHeight > screenWidth
@@ -344,7 +367,7 @@ class StatusIconsComponent extends StatelessWidget {
                       2,
               child: _buildStatusIcon(
                 context,
-                wifiConnected
+                bluetoothEnabled
                     ? 'source/ico/bluetoothon.svg'
                     : 'source/ico/bluetoothoff.svg',
                 Colors.white,
@@ -427,6 +450,7 @@ class DateTimeComponent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Stack(
       children: [
         // 梯形背景 - 使用RepaintBoundary隔离，防止重绘
@@ -434,7 +458,7 @@ class DateTimeComponent extends StatelessWidget {
           child: CustomPaint(
             size: Size(screenWidth - sidePanelWidth, screenHeight * 0.3),
             painter: TrapezoidPainter1(
-              color: const Color(0xFF567C8C).withOpacity(0.8),
+              color: colorScheme.primary.withValues(alpha: 0.82),
               sidePanelWidth: 0,
             ),
           ),
@@ -475,6 +499,7 @@ class DateDisplayContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     // 获取当前时间，但只用于初始化日期和星期
     final now = DateTime.now();
     final dateFormat = DateFormat('yyyy-MM-dd');
@@ -501,7 +526,7 @@ class DateDisplayContent extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white,
+                    color: colorScheme.onPrimary,
                     fontSize: screenHeight > screenWidth
                         ? screenWidth * 0.04
                         : screenHeight * 0.04,
@@ -520,7 +545,7 @@ class DateDisplayContent extends StatelessWidget {
                   Text(
                     date,
                     style: TextStyle(
-                      color: Colors.white,
+                      color: colorScheme.onPrimary,
                       fontSize: screenHeight > screenWidth
                           ? screenWidth * 0.04
                           : screenHeight * 0.04,
@@ -539,7 +564,7 @@ class DateDisplayContent extends StatelessWidget {
                         return Text(
                           time,
                           style: TextStyle(
-                            color: const Color(0xFFDBA7AF),
+                            color: colorScheme.onPrimary,
                             fontSize: screenHeight > screenWidth
                                 ? screenWidth * 0.07
                                 : screenHeight * 0.07,
@@ -613,8 +638,9 @@ class SideTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      color: const Color(0xFFB5C9D1).withOpacity(0.9),
+      color: colorScheme.primaryContainer.withValues(alpha: 0.92),
       child: RotatedBox(
         quarterTurns: 1, // 旋转TabBar使其垂直
         child: TabBar(
@@ -628,8 +654,10 @@ class SideTabBar extends StatelessWidget {
                   'source/ico/setting.svg',
                   width: screenWidth * 0.15,
                   height: screenWidth * 0.15,
-                  colorFilter:
-                      const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                  colorFilter: ColorFilter.mode(
+                    colorScheme.onPrimaryContainer,
+                    BlendMode.srcIn,
+                  ),
                 ),
               ),
             ),
@@ -640,8 +668,10 @@ class SideTabBar extends StatelessWidget {
                   'source/ico/calendar.svg',
                   width: screenWidth * 0.15,
                   height: screenWidth * 0.15,
-                  colorFilter:
-                      const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                  colorFilter: ColorFilter.mode(
+                    colorScheme.onPrimaryContainer,
+                    BlendMode.srcIn,
+                  ),
                 ),
               ),
             ),
@@ -652,20 +682,10 @@ class SideTabBar extends StatelessWidget {
                   'source/ico/modular.svg',
                   width: screenWidth * 0.15,
                   height: screenWidth * 0.15,
-                  colorFilter:
-                      const ColorFilter.mode(Colors.white, BlendMode.srcIn),
-                ),
-              ),
-            ),
-            RotatedBox(
-              quarterTurns: 3,
-              child: Tab(
-                icon: SvgPicture.asset(
-                  'source/ico/a-VoiceAssistants.svg',
-                  width: screenWidth * 0.15,
-                  height: screenWidth * 0.15,
-                  colorFilter:
-                      const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                  colorFilter: ColorFilter.mode(
+                    colorScheme.onPrimaryContainer,
+                    BlendMode.srcIn,
+                  ),
                 ),
               ),
             ),
@@ -689,12 +709,6 @@ class SideTabBar extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                       builder: (context) => const LaunchpadPage()),
-                );
-                break;
-              case 3:
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const Live2DPage()),
                 );
                 break;
             }

@@ -14,7 +14,9 @@ Future<Uint8List?> readEmbeddedCover(String path) async {
       cover = _extractMp3Cover(bytes);
     } else if (lower.endsWith('.flac')) {
       cover = _extractFlacCover(bytes);
-    } else if (lower.endsWith('.ogg') || lower.endsWith('.oga') || lower.endsWith('.opus')) {
+    } else if (lower.endsWith('.ogg') ||
+        lower.endsWith('.oga') ||
+        lower.endsWith('.opus')) {
       cover = _extractOggCover(bytes);
     }
     _coverCache[path] = cover;
@@ -74,13 +76,19 @@ Uint8List? _extractMp3Cover(Uint8List data) {
 
 Uint8List? _extractFlacCover(Uint8List data) {
   if (data.length < 4) return null;
-  if (!(data[0] == 0x66 && data[1] == 0x4C && data[2] == 0x61 && data[3] == 0x43)) return null;
+  if (!(data[0] == 0x66 &&
+      data[1] == 0x4C &&
+      data[2] == 0x61 &&
+      data[3] == 0x43)) {
+    return null;
+  }
   var offset = 4;
   while (offset + 4 <= data.length) {
     final header0 = data[offset];
     final isLast = (header0 & 0x80) != 0;
     final blockType = header0 & 0x7F;
-    final length = (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3];
+    final length =
+        (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3];
     final start = offset + 4;
     final end = start + length;
     if (end > data.length) break;
@@ -168,16 +176,30 @@ String _readBase64(Uint8List d, int start) {
 }
 
 bool _isBase64Char(String ch) {
-  const set = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  const set =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
   return set.contains(ch);
 }
 
 bool _looksLikeImage(Uint8List data) {
   if (data.length < 12) return false;
-  if (data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47) return true;
+  if (data[0] == 0x89 &&
+      data[1] == 0x50 &&
+      data[2] == 0x4E &&
+      data[3] == 0x47) {
+    return true;
+  }
   if (data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF) return true;
-  if (data[0] == 0x52 && data[1] == 0x49 && data[2] == 0x46 && data[3] == 0x46 &&
-      data[8] == 0x57 && data[9] == 0x45 && data[10] == 0x42 && data[11] == 0x50) return true;
+  if (data[0] == 0x52 &&
+      data[1] == 0x49 &&
+      data[2] == 0x46 &&
+      data[3] == 0x46 &&
+      data[8] == 0x57 &&
+      data[9] == 0x45 &&
+      data[10] == 0x42 &&
+      data[11] == 0x50) {
+    return true;
+  }
   return false;
 }
 

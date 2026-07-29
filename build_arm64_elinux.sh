@@ -9,18 +9,28 @@ TARGET_ARCH="arm64"
 E_LINUX_OUT_DIR="build/elinux/${TARGET_ARCH}/release/bundle"
 E_LINUX_BUILD_DIR="build/elinux/${TARGET_ARCH}/release"
 DIST_DIR="build/elinux/${TARGET_ARCH}/release/dist"
-SYSROOT_LIB_DIRS=(
+ARM64_SYSROOT="${ARM64_SYSROOT:-}"
+SYSROOT_LIB_DIRS=()
+if [ -n "${ARM64_SYSROOT}" ]; then
+  SYSROOT_LIB_DIRS+=(
+    "${ARM64_SYSROOT}/usr/lib/aarch64-linux-gnu"
+    "${ARM64_SYSROOT}/lib/aarch64-linux-gnu"
+    "${ARM64_SYSROOT}/usr/lib"
+    "${ARM64_SYSROOT}/lib"
+  )
+fi
+SYSROOT_LIB_DIRS+=(
   "/usr/lib/aarch64-linux-gnu"
   "/usr/aarch64-linux-gnu/lib"
   "/lib/aarch64-linux-gnu"
 )
-PLUGIN_NAME="libflutter_soloud_plugin.so"
-DEFAULT_PLUGIN_SO="build/linux/${TARGET_ARCH}/release/bundle/lib/${PLUGIN_NAME}"
-PLUGIN_SO_PATH="${1:-${DEFAULT_PLUGIN_SO}}"
 HOST_ARCH="$(uname -m)"
 
 echo "[INFO] Host arch: ${HOST_ARCH}"
 echo "[INFO] Target arch: ${TARGET_ARCH}"
+if [ -n "${ARM64_SYSROOT}" ]; then
+  echo "[INFO] ARM64_SYSROOT: ${ARM64_SYSROOT}"
+fi
 
 if ! command -v flutter-elinux >/dev/null 2>&1; then
   echo "[ERROR] flutter-elinux not found in PATH."
@@ -150,22 +160,6 @@ if [ "${#MISSING_ARM64_LIBS[@]}" -gt 0 ]; then
   exit 1
 fi
 
-# For some plugins (such as flutter_soloud), flutter-elinux build output may
-# need a prebuilt target .so copied into elinux bundle.
-if [ ! -f "${PLUGIN_SO_PATH}" ]; then
-  if [ "${HOST_ARCH}" = "aarch64" ] && [ -x "./build_origin.sh" ]; then
-    echo "[INFO] Plugin .so not found, trying to build with ./build_origin.sh ..."
-    ./build_origin.sh
-  fi
-fi
-
-if [ ! -f "${PLUGIN_SO_PATH}" ]; then
-  echo "[WARN] Plugin .so not found: ${PLUGIN_SO_PATH}"
-  echo "       If build succeeds but runtime reports missing ${PLUGIN_NAME},"
-  echo "       pass prebuilt arm64 .so path as first argument:"
-  echo "       ./build_arm64_elinux.sh /abs/path/to/${PLUGIN_NAME}"
-fi
-
 echo "[INFO] Running flutter-elinux pub get ..."
 flutter-elinux pub get
 
@@ -176,12 +170,6 @@ fi
 
 echo "[INFO] Building eLinux arm64 bundle ..."
 flutter-elinux build elinux --target-arch="${TARGET_ARCH}" --release --verbose
-
-if [ -f "${PLUGIN_SO_PATH}" ]; then
-  mkdir -p "${E_LINUX_OUT_DIR}/lib"
-  cp -f "${PLUGIN_SO_PATH}" "${E_LINUX_OUT_DIR}/lib/"
-  echo "[INFO] Copied plugin to ${E_LINUX_OUT_DIR}/lib/${PLUGIN_NAME}"
-fi
 
 echo "[INFO] Collecting runtime dependencies ..."
 collect_runtime_deps "${E_LINUX_OUT_DIR}"

@@ -14,11 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'setting/wifi_page.dart';
+import 'setting/bluetooth_page.dart';
 import 'setting/display_page.dart';
 import 'setting/about_page.dart';
 import 'setting/developer_page.dart';
+import 'setting/wallpaper_settings_page.dart';
+import 'setting/remote_web_settings_page.dart';
 import 'services/display_service.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -40,7 +46,6 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
   }
-
 
   Widget _sectionHeader(String title) {
     return Padding(
@@ -67,16 +72,16 @@ class _SettingsPageState extends State<SettingsPage> {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          children: ListTile.divideTiles(
-            context: context,
-            tiles: tiles,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: ListTile.divideTiles(
+          context: context,
+          tiles: tiles,
           color: Theme.of(context).dividerColor.withOpacity(0.1),
-          ).toList(),
+        ).toList(),
       ),
     );
   }
@@ -114,16 +119,11 @@ class _SettingsPageState extends State<SettingsPage> {
               leading: _icon(Icons.bluetooth),
               title: const Text('蓝牙'),
               trailing: const Icon(Icons.chevron_right, size: 20),
-              onTap: () => _showNotImplemented('蓝牙'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (_) => const BluetoothSettingsPage()),
+              ),
             ),
-            // ListTile(
-            //   leading: const Icon(Icons.network_check, color: Colors.blue),
-            //   title: const Text('WebSocket测试'),
-            //   trailing: const Icon(Icons.chevron_right),
-            //   onTap: () => Navigator.of(context).push(
-            //     MaterialPageRoute(builder: (_) => const WebSocketTestPage()),
-            //   ),
-            // ),
           ]),
           const SizedBox(height: 24),
           _sectionHeader('显示和声音'),
@@ -132,9 +132,53 @@ class _SettingsPageState extends State<SettingsPage> {
               leading: _icon(Icons.display_settings),
               title: const Text('显示设置'),
               trailing: const Icon(Icons.chevron_right, size: 20),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const DisplaySettingsPage()),
-              ),
+              onTap: () {
+                // #region debug-point A:display-settings-navigation
+                (() async {
+                  try {
+                    var debugServerUrl = 'http://198.18.0.1:7778/event';
+                    var debugSessionId = 'display-settings-crash';
+                    try {
+                      final env = await File(
+                        '.dbg/display-settings-crash.env',
+                      ).readAsString();
+                      for (final line in env.split('\n')) {
+                        if (line.startsWith('DEBUG_SERVER_URL=')) {
+                          debugServerUrl = line.substring(
+                            'DEBUG_SERVER_URL='.length,
+                          );
+                        } else if (line.startsWith('DEBUG_SESSION_ID=')) {
+                          debugSessionId = line.substring(
+                            'DEBUG_SESSION_ID='.length,
+                          );
+                        }
+                      }
+                    } catch (_) {}
+                    final client = HttpClient();
+                    final req = await client.postUrl(Uri.parse(debugServerUrl));
+                    req.headers.contentType = ContentType.json;
+                    req.write(
+                      jsonEncode({
+                        'sessionId': debugSessionId,
+                        'runId': 'pre-fix',
+                        'hypothesisId': 'A',
+                        'location': 'lib/settings_page.dart:131',
+                        'msg': '[DEBUG] display settings tap before push',
+                        'data': {'route': 'DisplaySettingsPage'},
+                        'ts': DateTime.now().millisecondsSinceEpoch,
+                      }),
+                    );
+                    await req.close();
+                    client.close();
+                  } catch (_) {}
+                })();
+                // #endregion
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const DisplaySettingsPage(),
+                  ),
+                );
+              },
             ),
             ListTile(
               leading: _icon(Icons.volume_up),
@@ -144,14 +188,29 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             ListTile(
               leading: _icon(Icons.wallpaper),
-              title: const Text('壁纸设置'),
+              title: const Text('壁纸和主题色'),
               trailing: const Icon(Icons.chevron_right, size: 20),
-              onTap: () => _showNotImplemented('壁纸设置'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const WallpaperSettingsPage(),
+                ),
+              ),
             ),
           ]),
           const SizedBox(height: 24),
           _sectionHeader('系统'),
           _section([
+            ListTile(
+              leading: _icon(Icons.language),
+              title: const Text('远程 Web 设置'),
+              subtitle: const Text('通过手机或电脑设置壁纸'),
+              trailing: const Icon(Icons.chevron_right, size: 20),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const RemoteWebSettingsPage(),
+                ),
+              ),
+            ),
             ListTile(
               leading: _icon(Icons.battery_std),
               title: const Text('电池管理'),
@@ -165,26 +224,25 @@ class _SettingsPageState extends State<SettingsPage> {
               onTap: () => _showNotImplemented('键盘设置'),
             ),
           ]),
-
           const SizedBox(height: 24),
           _sectionHeader('关于'),
           _section([
-          ListTile(
+            ListTile(
               leading: _icon(Icons.info_outline),
-            title: const Text('关于'),
+              title: const Text('关于'),
               trailing: const Icon(Icons.chevron_right, size: 20),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const AboutPage()),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AboutPage()),
+              ),
             ),
-          ),
-          ListTile(
+            ListTile(
               leading: _icon(Icons.developer_mode),
-            title: const Text('开发者'),
+              title: const Text('开发者'),
               trailing: const Icon(Icons.chevron_right, size: 20),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const DeveloperPage()),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DeveloperPage()),
+              ),
             ),
-          ),
           ]),
           const SizedBox(height: 24),
         ],

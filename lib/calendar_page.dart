@@ -199,6 +199,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
   // 构建日历网格
   Widget _buildCalendarGrid() {
+    final colorScheme = Theme.of(context).colorScheme;
     final daysInMonth = _getDaysInMonth(_focusedDate.year, _focusedDate.month);
     final firstDayOfWeek =
         _getFirstDayOfWeek(_focusedDate.year, _focusedDate.month);
@@ -248,8 +249,8 @@ class _CalendarPageState extends State<CalendarPage> {
             margin: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: isSelected
-                  ? Colors.blue
-                  : (isToday ? Colors.blue.withOpacity(0.2) : null),
+                  ? colorScheme.primary
+                  : (isToday ? colorScheme.primaryContainer : null),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
@@ -257,8 +258,8 @@ class _CalendarPageState extends State<CalendarPage> {
                 dayNumber.toString(),
                 style: TextStyle(
                   color: isSelected
-                      ? Colors.white
-                      : (isToday ? Colors.blue : null),
+                      ? colorScheme.onPrimary
+                      : (isToday ? colorScheme.onPrimaryContainer : null),
                   fontWeight: isSelected || isToday ? FontWeight.bold : null,
                 ),
               ),
@@ -271,85 +272,86 @@ class _CalendarPageState extends State<CalendarPage> {
 
   // 构建选中日期的详细信息
   Widget _buildSelectedDateDetails() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
       ),
-      color: Colors.blue.withOpacity(0.1),
+      color: colorScheme.primaryContainer.withValues(alpha: 0.45),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // 左侧日期信息
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '选中: ${DateFormat('yyyy年MM月dd日').format(_selectedDate)}',
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '星期${[
-                    '日',
-                    '一',
-                    '二',
-                    '三',
-                    '四',
-                    '五',
-                    '六'
-                  ][_selectedDate.weekday % 7]}',
-                  style: const TextStyle(fontSize: 13),
-                ),
-                // const SizedBox(height: 4),
-                // const Text('今日事项:', style: TextStyle(fontSize: 13)),
-                // const Text('暂无事项', style: TextStyle(fontSize: 13)),
-              ],
-            ),
-          ),
-          // 右侧时间间隔信息
-          Expanded(
-            flex: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(6),
-              ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 左侧日期信息
+            Expanded(
+              flex: 3,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('与今天相距', style: TextStyle(fontSize: 13)),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _getTimeFromToday(),
-                      style: const TextStyle(
-                        color: Colors.blue,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
+                  Text(
+                    '选中: ${DateFormat('yyyy年MM月dd日').format(_selectedDate)}',
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.bold),
                   ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '星期${[
+                      '日',
+                      '一',
+                      '二',
+                      '三',
+                      '四',
+                      '五',
+                      '六'
+                    ][_selectedDate.weekday % 7]}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  // const SizedBox(height: 4),
+                  // const Text('今日事项:', style: TextStyle(fontSize: 13)),
+                  // const Text('暂无事项', style: TextStyle(fontSize: 13)),
                 ],
               ),
             ),
-          ),
-        ],
+            // 右侧时间间隔信息
+            Expanded(
+              flex: 2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('与今天相距', style: TextStyle(fontSize: 13)),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 4, horizontal: 8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _getTimeFromToday(),
+                        style: TextStyle(
+                          color: colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -440,65 +442,66 @@ class _CalendarPageState extends State<CalendarPage> {
 
   // 构建时间间隔详情（用于宽屏设备右侧显示）
   Widget _buildTimeIntervalDetails() {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.only(top: 16),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
       ),
-      color: Colors.blue.withOpacity(0.1),
+      color: colorScheme.primaryContainer.withValues(alpha: 0.45),
       child: Padding(
         padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '选中日期详情',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            DateFormat('yyyy年MM月dd日').format(_selectedDate),
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '星期${[
-              '日',
-              '一',
-              '二',
-              '三',
-              '四',
-              '五',
-              '六'
-            ][_selectedDate.weekday % 7]}',
-            style: const TextStyle(fontSize: 16),
-          ),
-          const SizedBox(height: 24),
-          const Text('与今天的时间间隔:', style: TextStyle(fontSize: 16)),
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '选中日期详情',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            child: Text(
-              _getTimeFromToday(),
-              style: const TextStyle(
-                color: Colors.blue,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
+            const SizedBox(height: 12),
+            Text(
+              DateFormat('yyyy年MM月dd日').format(_selectedDate),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '星期${[
+                '日',
+                '一',
+                '二',
+                '三',
+                '四',
+                '五',
+                '六'
+              ][_selectedDate.weekday % 7]}',
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 24),
+            const Text('与今天的时间间隔:', style: TextStyle(fontSize: 16)),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(8),
               ),
-              textAlign: TextAlign.center,
+              child: Text(
+                _getTimeFromToday(),
+                style: TextStyle(
+                  color: colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
-          ),
-          // const SizedBox(height: 24),
-          // const Text('今日事项:', style: TextStyle(fontSize: 16)),
-          // const SizedBox(height: 8),
-          // const Text('暂无事项', style: TextStyle(fontSize: 14)),
-        ],
+            // const SizedBox(height: 24),
+            // const Text('今日事项:', style: TextStyle(fontSize: 16)),
+            // const SizedBox(height: 8),
+            // const Text('暂无事项', style: TextStyle(fontSize: 14)),
+          ],
         ),
       ),
     );

@@ -14,12 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/display_service.dart';
 import '../services/theme_service.dart';
-import '../services/websocket_service_manager.dart';
-import '../services/brightness_module.dart';
+import '../services/native_brightness_service.dart';
 import '../models/brightness_models.dart';
 
 class DisplaySettingsPage extends StatefulWidget {
@@ -42,7 +45,6 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     '200%'
   ];
 
-  double _currentScale = 1.0;
   int _currentIndex = 0;
   bool _isLoading = true;
 
@@ -56,19 +58,58 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   bool _brightnessLoading = true;
   String _brightnessError = '';
 
-  // 亮度模块
-  BrightnessModule? _brightnessModule;
+  final NativeBrightnessService _brightnessService =
+      NativeBrightnessService.instance;
+  StreamSubscription<BrightnessStatus>? _brightnessSubscription;
 
   @override
   void initState() {
     super.initState();
+    // #region debug-point B:display-page-init
+    (() async {
+      try {
+        var debugServerUrl = 'http://198.18.0.1:7778/event';
+        var debugSessionId = 'display-settings-crash';
+        try {
+          final env =
+              await File('.dbg/display-settings-crash.env').readAsString();
+          for (final line in env.split('\n')) {
+            if (line.startsWith('DEBUG_SERVER_URL=')) {
+              debugServerUrl = line.substring('DEBUG_SERVER_URL='.length);
+            } else if (line.startsWith('DEBUG_SESSION_ID=')) {
+              debugSessionId = line.substring('DEBUG_SESSION_ID='.length);
+            }
+          }
+        } catch (_) {}
+        final client = HttpClient();
+        final req = await client.postUrl(Uri.parse(debugServerUrl));
+        req.headers.contentType = ContentType.json;
+        req.write(
+          jsonEncode({
+            'sessionId': debugSessionId,
+            'runId': 'pre-fix',
+            'hypothesisId': 'B',
+            'location': 'lib/setting/display_page.dart:66',
+            'msg': '[DEBUG] display page initState entered',
+            'data': {
+              'brightnessInitialized': _brightnessService.isInitialized,
+              'currentIndex': _currentIndex,
+            },
+            'ts': DateTime.now().millisecondsSinceEpoch,
+          }),
+        );
+        await req.close();
+        client.close();
+      } catch (_) {}
+    })();
+    // #endregion
     _loadScale();
     _initBrightnessModule();
   }
 
   @override
   void dispose() {
-    // 亮度模块由 WebSocketServiceManager 管理，无需手动释放
+    _brightnessSubscription?.cancel();
     super.dispose();
   }
 
@@ -89,13 +130,14 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
         }
       }
 
+      if (!mounted) return;
       setState(() {
-        _currentScale = _scaleValues[index];
         _currentIndex = index;
         _isLoading = false;
       });
     } catch (e) {
       print('加载缩放设置失败: $e');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
@@ -123,7 +165,6 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     if (index >= 0 && index < _scaleValues.length) {
       final newScale = _scaleValues[index];
       setState(() {
-        _currentScale = newScale;
         _currentIndex = index;
       });
 
@@ -151,35 +192,139 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     }
   }
 
-  /// 初始化亮度模块
+  /// 初始化 Flutter 亮度包。
   Future<void> _initBrightnessModule() async {
     try {
-      // 获取亮度模块实例
-      _brightnessModule = WebSocketServiceManager.instance.brightnessModule;
-
-      if (_brightnessModule == null) {
-        throw Exception('无法获取亮度模块');
-      }
-
-      // 监听亮度状态变化
-      _brightnessModule!.statusStream.listen((status) {
+      // #region debug-point C:brightness-module-entry
+      (() async {
+        try {
+          var debugServerUrl = 'http://198.18.0.1:7778/event';
+          var debugSessionId = 'display-settings-crash';
+          try {
+            final env =
+                await File('.dbg/display-settings-crash.env').readAsString();
+            for (final line in env.split('\n')) {
+              if (line.startsWith('DEBUG_SERVER_URL=')) {
+                debugServerUrl = line.substring('DEBUG_SERVER_URL='.length);
+              } else if (line.startsWith('DEBUG_SESSION_ID=')) {
+                debugSessionId = line.substring('DEBUG_SESSION_ID='.length);
+              }
+            }
+          } catch (_) {}
+          final client = HttpClient();
+          final req = await client.postUrl(Uri.parse(debugServerUrl));
+          req.headers.contentType = ContentType.json;
+          req.write(
+            jsonEncode({
+              'sessionId': debugSessionId,
+              'runId': 'pre-fix',
+              'hypothesisId': 'C',
+              'location': 'lib/setting/display_page.dart:158',
+              'msg': '[DEBUG] brightness module init entered',
+              'data': {
+                'serviceInitialized': _brightnessService.isInitialized,
+              },
+              'ts': DateTime.now().millisecondsSinceEpoch,
+            }),
+          );
+          await req.close();
+          client.close();
+        } catch (_) {}
+      })();
+      // #endregion
+      _brightnessSubscription =
+          _brightnessService.statusStream.listen((status) {
         if (mounted) {
           setState(() {
             _brightnessStatus = status;
             _brightnessLoading = false;
-            _brightnessError = '';
+            _brightnessError =
+                status.available ? '' : '当前设备不支持亮度控制，或缺少 backlight 写入权限';
           });
         }
       });
 
-      // 监听调节状态变化
-      _brightnessModule!.adjustingStream.listen((isAdjusting) {
-        // 可以在这里添加调节状态的UI反馈
-      });
-
-      // 获取初始状态
-      await _brightnessModule!.getStatus();
+      await _brightnessService.initialize();
+      final status = await _brightnessService.getStatus();
+      // #region debug-point C:brightness-module-status
+      (() async {
+        try {
+          var debugServerUrl = 'http://198.18.0.1:7778/event';
+          var debugSessionId = 'display-settings-crash';
+          try {
+            final env =
+                await File('.dbg/display-settings-crash.env').readAsString();
+            for (final line in env.split('\n')) {
+              if (line.startsWith('DEBUG_SERVER_URL=')) {
+                debugServerUrl = line.substring('DEBUG_SERVER_URL='.length);
+              } else if (line.startsWith('DEBUG_SESSION_ID=')) {
+                debugSessionId = line.substring('DEBUG_SESSION_ID='.length);
+              }
+            }
+          } catch (_) {}
+          final client = HttpClient();
+          final req = await client.postUrl(Uri.parse(debugServerUrl));
+          req.headers.contentType = ContentType.json;
+          req.write(
+            jsonEncode({
+              'sessionId': debugSessionId,
+              'runId': 'pre-fix',
+              'hypothesisId': 'C',
+              'location': 'lib/setting/display_page.dart:173',
+              'msg': '[DEBUG] brightness module status fetched',
+              'data': {
+                'statusNull': status == null,
+                'available': status?.available,
+                'current': status?.current,
+                'max': status?.max,
+              },
+              'ts': DateTime.now().millisecondsSinceEpoch,
+            }),
+          );
+          await req.close();
+          client.close();
+        } catch (_) {}
+      })();
+      // #endregion
+      if (status == null || !status.available) {
+        throw Exception('当前设备不支持亮度控制，或缺少 backlight 写入权限');
+      }
     } catch (e) {
+      // #region debug-point C:brightness-module-error
+      (() async {
+        try {
+          var debugServerUrl = 'http://198.18.0.1:7778/event';
+          var debugSessionId = 'display-settings-crash';
+          try {
+            final env =
+                await File('.dbg/display-settings-crash.env').readAsString();
+            for (final line in env.split('\n')) {
+              if (line.startsWith('DEBUG_SERVER_URL=')) {
+                debugServerUrl = line.substring('DEBUG_SERVER_URL='.length);
+              } else if (line.startsWith('DEBUG_SESSION_ID=')) {
+                debugSessionId = line.substring('DEBUG_SESSION_ID='.length);
+              }
+            }
+          } catch (_) {}
+          final client = HttpClient();
+          final req = await client.postUrl(Uri.parse(debugServerUrl));
+          req.headers.contentType = ContentType.json;
+          req.write(
+            jsonEncode({
+              'sessionId': debugSessionId,
+              'runId': 'pre-fix',
+              'hypothesisId': 'C',
+              'location': 'lib/setting/display_page.dart:184',
+              'msg': '[DEBUG] brightness module init failed',
+              'data': {'error': e.toString()},
+              'ts': DateTime.now().millisecondsSinceEpoch,
+            }),
+          );
+          await req.close();
+          client.close();
+        } catch (_) {}
+      })();
+      // #endregion
       if (mounted) {
         setState(() {
           _brightnessError = '初始化失败: $e';
@@ -191,15 +336,11 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
 
   /// 设置亮度
   Future<void> _setBrightness(int brightness) async {
-    if (_brightnessModule != null) {
-      await _brightnessModule!.setBrightness(brightness);
-    }
-  }
-
-  /// 设置自动亮度
-  Future<void> _setAutoBrightness(bool enable) async {
-    if (_brightnessModule != null) {
-      await _brightnessModule!.setAutoMode(enable);
+    final success = await _brightnessService.setBrightness(brightness);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('设置亮度失败，请检查 backlight 权限')),
+      );
     }
   }
 
@@ -237,7 +378,9 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                     ),
                   ),
           ),
-          if (!_brightnessLoading && _brightnessError.isEmpty)
+          if (!_brightnessLoading &&
+              _brightnessError.isEmpty &&
+              _brightnessStatus.available)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Column(
@@ -252,11 +395,15 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                           min: 0,
                           max: 100,
                           divisions: 30,
-                          onChanged: _brightnessStatus.autoEnabled
-                              ? null
-                              : (value) {
-                                  _setBrightness(value.round());
-                                },
+                          onChanged: (value) {
+                            setState(() {
+                              _brightnessStatus = _brightnessStatus.copyWith(
+                                current: value.round(),
+                                max: 100,
+                              );
+                            });
+                          },
+                          onChangeEnd: (value) => _setBrightness(value.round()),
                         ),
                       ),
                       Icon(Icons.brightness_high,
@@ -362,48 +509,6 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     );
   }
 
-  /// 构建预览区域
-  Widget _buildPreviewSection() {
-    return Transform.scale(
-      scale: _currentScale,
-      child: Container(
-        margin: const EdgeInsets.all(16),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              '预览效果',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                Icon(Icons.home, color: Colors.blue[600]),
-                Icon(Icons.settings, color: Colors.grey[600]),
-                Icon(Icons.wifi, color: Colors.green[600]),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '这是界面缩放的预览效果',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final scale = DisplayService.instance.scaleFactor;
@@ -427,7 +532,8 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                 const SizedBox(height: 8),
                 _sectionHeader('主题'),
                 Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -444,7 +550,8 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              ThemeService.instance.getThemeModeName(currentMode),
+                              ThemeService.instance
+                                  .getThemeModeName(currentMode),
                               style: TextStyle(
                                 color: Colors.grey.shade600,
                                 fontSize: 14,
@@ -462,7 +569,8 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                 const SizedBox(height: 24),
                 _sectionHeader('界面缩放'),
                 Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

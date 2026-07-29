@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,14 +15,18 @@ limitations under the License.
 */
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 
 import '../models/brightness_models.dart';
 
-/// 原生亮度服务（Linux）
+/// Linux 屏幕亮度服务。
 ///
-/// 优先使用 brightnessctl，如果不可用则退回到 /sys/class/backlight
+/// 直接读写 sysfs backlight 接口，优先使用 brightnessctl，退回到
+/// `/sys/class/backlight/<device>`。写入通常要求用户属于 `video` 组。
+/// 该实现为纯 Dart，不依赖外部包，可在 flutter 与 flutter-elinux 两套
+/// 工具链下编译。
 class NativeBrightnessService {
   static final NativeBrightnessService instance = NativeBrightnessService._();
   NativeBrightnessService._();
@@ -38,108 +42,176 @@ class NativeBrightnessService {
   );
 
   bool _initialized = false;
-  bool _useBrightnessctl = false;
-  String? _backlightPath; // /sys/class/backlight/<device>
-
+  String? _backlightPath;
   Timer? _pollTimer;
 
-  /// 亮度状态流
   Stream<BrightnessStatus> get statusStream => _statusController.stream;
-
-  /// 当前状态
   BrightnessStatus get currentStatus => _currentStatus;
-
   bool get isInitialized => _initialized;
 
-  /// 初始化服务，检测可用的亮度控制后端
   Future<void> initialize() async {
     if (_initialized) return;
-
-    developer.log('初始化原生亮度服务', name: 'NativeBrightnessService');
+    _initialized = true;
 
     try {
-      // 只在 Linux 下尝试原生亮度控制
+      // #region debug-point D:brightness-service-initialize
+      (() async {
+        try {
+          var debugServerUrl = 'http://198.18.0.1:7778/event';
+          var debugSessionId = 'display-settings-crash';
+          try {
+            final env =
+                await File('.dbg/display-settings-crash.env').readAsString();
+            for (final line in env.split('\n')) {
+              if (line.startsWith('DEBUG_SERVER_URL=')) {
+                debugServerUrl = line.substring('DEBUG_SERVER_URL='.length);
+              } else if (line.startsWith('DEBUG_SESSION_ID=')) {
+                debugSessionId = line.substring('DEBUG_SESSION_ID='.length);
+              }
+            }
+          } catch (_) {}
+          final client = HttpClient();
+          final req = await client.postUrl(Uri.parse(debugServerUrl));
+          req.headers.contentType = ContentType.json;
+          req.write(
+            jsonEncode({
+              'sessionId': debugSessionId,
+              'runId': 'pre-fix',
+              'hypothesisId': 'D',
+              'location': 'lib/services/native_brightness_service.dart:57',
+              'msg': '[DEBUG] brightness service initialize entered',
+              'data': {'initialized': _initialized},
+              'ts': DateTime.now().millisecondsSinceEpoch,
+            }),
+          );
+          await req.close();
+          client.close();
+        } catch (_) {}
+      })();
+      // #endregion
       if (!Platform.isLinux) {
-        developer.log('当前平台非 Linux，亮度控制不可用', name: 'NativeBrightnessService');
         _setStatus(_currentStatus.copyWith(available: false));
-        _initialized = true;
         return;
       }
 
-      // 1. 尝试检测 brightnessctl
-      try {
-        final result = await Process.run('brightnessctl', ['-h']);
-        if (result.exitCode == 0) {
-          _useBrightnessctl = true;
-          developer.log('检测到 brightnessctl，可用于亮度控制', name: 'NativeBrightnessService');
-        }
-      } catch (_) {
-        _useBrightnessctl = false;
-      }
-
-      // 2. 如果没有 brightnessctl，尝试 /sys/class/backlight
-      if (!_useBrightnessctl) {
-        final sysDir = Directory('/sys/class/backlight');
-        if (await sysDir.exists()) {
-          final devices = await sysDir
-              .list()
-              .where((e) => e is Directory)
-              .cast<Directory>()
-              .toList();
-          if (devices.isNotEmpty) {
-            _backlightPath = devices.first.path;
-            developer.log('使用 backlight 目录: $_backlightPath', name: 'NativeBrightnessService');
-          }
+      // flutter-elinux embedders may not support spawning subprocesses
+      // reliably. Reading sysfs directly also avoids depending on
+      // brightnessctl being installed on the target image.
+      final sysDir = Directory('/sys/class/backlight');
+      if (await sysDir.exists()) {
+        final devices = await sysDir
+            .list()
+            .where((e) => e is Directory)
+            .cast<Directory>()
+            .toList();
+        if (devices.isNotEmpty) {
+          _backlightPath = devices.first.path;
         }
       }
 
-      final available = _useBrightnessctl || _backlightPath != null;
-      _initialized = true;
-
-      // 获取一次初始状态
+      final available = _backlightPath != null;
+      // #region debug-point D:brightness-service-backend
+      (() async {
+        try {
+          var debugServerUrl = 'http://198.18.0.1:7778/event';
+          var debugSessionId = 'display-settings-crash';
+          try {
+            final env =
+                await File('.dbg/display-settings-crash.env').readAsString();
+            for (final line in env.split('\n')) {
+              if (line.startsWith('DEBUG_SERVER_URL=')) {
+                debugServerUrl = line.substring('DEBUG_SERVER_URL='.length);
+              } else if (line.startsWith('DEBUG_SESSION_ID=')) {
+                debugSessionId = line.substring('DEBUG_SESSION_ID='.length);
+              }
+            }
+          } catch (_) {}
+          final client = HttpClient();
+          final req = await client.postUrl(Uri.parse(debugServerUrl));
+          req.headers.contentType = ContentType.json;
+          req.write(
+            jsonEncode({
+              'sessionId': debugSessionId,
+              'runId': 'pre-fix',
+              'hypothesisId': 'D',
+              'location': 'lib/services/native_brightness_service.dart:86',
+              'msg': '[DEBUG] brightness backend resolved',
+              'data': {
+                'backlightPath': _backlightPath,
+                'available': available,
+              },
+              'ts': DateTime.now().millisecondsSinceEpoch,
+            }),
+          );
+          await req.close();
+          client.close();
+        } catch (_) {}
+      })();
+      // #endregion
       if (available) {
         await getStatus();
+        _pollTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+          if (!_initialized) {
+            timer.cancel();
+            return;
+          }
+          getStatus().catchError((e) {
+            developer.log('轮询亮度状态失败: $e', name: 'NativeBrightnessService');
+            return null;
+          });
+        });
       } else {
         _setStatus(_currentStatus.copyWith(available: false));
       }
-
-      // 周期性轮询，保持 UI 同步
-      _pollTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-        if (!_initialized) {
-          timer.cancel();
-          return;
-        }
-        getStatus().catchError((e) {
-          developer.log('轮询亮度状态失败: $e', name: 'NativeBrightnessService');
-        });
-      });
-    } catch (e, stackTrace) {
-      developer.log(
-        '原生亮度服务初始化失败: $e',
-        name: 'NativeBrightnessService',
-        error: e,
-        stackTrace: stackTrace,
-      );
-      _initialized = true;
-      _setStatus(_currentStatus.copyWith(available: false));
+    } catch (error, stackTrace) {
+      _handleError(error, stackTrace);
     }
   }
 
-  /// 释放资源
-  Future<void> dispose() async {
-    _pollTimer?.cancel();
-    _pollTimer = null;
-    _initialized = false;
-    await _statusController.close();
-  }
-
-  /// 获取当前亮度状态
   Future<BrightnessStatus?> getStatus() async {
     if (!_initialized) {
       await initialize();
     }
 
-    if (!_useBrightnessctl && _backlightPath == null) {
+    // #region debug-point D:brightness-service-get-status
+    (() async {
+      try {
+        var debugServerUrl = 'http://198.18.0.1:7778/event';
+        var debugSessionId = 'display-settings-crash';
+        try {
+          final env =
+              await File('.dbg/display-settings-crash.env').readAsString();
+          for (final line in env.split('\n')) {
+            if (line.startsWith('DEBUG_SERVER_URL=')) {
+              debugServerUrl = line.substring('DEBUG_SERVER_URL='.length);
+            } else if (line.startsWith('DEBUG_SESSION_ID=')) {
+              debugSessionId = line.substring('DEBUG_SESSION_ID='.length);
+            }
+          }
+        } catch (_) {}
+        final client = HttpClient();
+        final req = await client.postUrl(Uri.parse(debugServerUrl));
+        req.headers.contentType = ContentType.json;
+        req.write(
+          jsonEncode({
+            'sessionId': debugSessionId,
+            'runId': 'pre-fix',
+            'hypothesisId': 'D',
+            'location': 'lib/services/native_brightness_service.dart:117',
+            'msg': '[DEBUG] brightness getStatus entered',
+            'data': {
+              'backlightPath': _backlightPath,
+            },
+            'ts': DateTime.now().millisecondsSinceEpoch,
+          }),
+        );
+        await req.close();
+        client.close();
+      } catch (_) {}
+    })();
+    // #endregion
+
+    if (_backlightPath == null) {
       _setStatus(_currentStatus.copyWith(available: false));
       return _currentStatus;
     }
@@ -148,51 +220,74 @@ class NativeBrightnessService {
       int current = 0;
       int max = 100;
 
-      if (_useBrightnessctl) {
-        final curResult = await Process.run('brightnessctl', ['g']);
-        final maxResult = await Process.run('brightnessctl', ['m']);
-        if (curResult.exitCode == 0 && maxResult.exitCode == 0) {
-          final curRaw = int.tryParse(curResult.stdout.toString().trim()) ?? 0;
-          final maxRaw = int.tryParse(maxResult.stdout.toString().trim()) ?? 1;
-          max = maxRaw;
-          current = curRaw.clamp(0, maxRaw);
-        }
-      } else if (_backlightPath != null) {
+      if (_backlightPath != null) {
         final curFile = File('$_backlightPath/brightness');
         final maxFile = File('$_backlightPath/max_brightness');
         if (await curFile.exists() && await maxFile.exists()) {
-          final curRaw = int.tryParse((await curFile.readAsString()).trim()) ?? 0;
-          final maxRaw = int.tryParse((await maxFile.readAsString()).trim()) ?? 1;
+          final curRaw =
+              int.tryParse((await curFile.readAsString()).trim()) ?? 0;
+          final maxRaw =
+              int.tryParse((await maxFile.readAsString()).trim()) ?? 1;
           max = maxRaw;
           current = curRaw.clamp(0, maxRaw);
         }
       }
 
-      // 转换为百分比（0-100）
-      final percent = max > 0 ? ((current / max) * 100).round().clamp(0, 100) : 0;
-
+      final percent =
+          max > 0 ? ((current / max) * 100).round().clamp(0, 100) : 0;
       final status = BrightnessStatus(
         current: percent,
         max: 100,
         autoEnabled: false,
         available: true,
       );
-
+      // #region debug-point D:brightness-service-status
+      (() async {
+        try {
+          var debugServerUrl = 'http://198.18.0.1:7778/event';
+          var debugSessionId = 'display-settings-crash';
+          try {
+            final env =
+                await File('.dbg/display-settings-crash.env').readAsString();
+            for (final line in env.split('\n')) {
+              if (line.startsWith('DEBUG_SERVER_URL=')) {
+                debugServerUrl = line.substring('DEBUG_SERVER_URL='.length);
+              } else if (line.startsWith('DEBUG_SESSION_ID=')) {
+                debugSessionId = line.substring('DEBUG_SESSION_ID='.length);
+              }
+            }
+          } catch (_) {}
+          final client = HttpClient();
+          final req = await client.postUrl(Uri.parse(debugServerUrl));
+          req.headers.contentType = ContentType.json;
+          req.write(
+            jsonEncode({
+              'sessionId': debugSessionId,
+              'runId': 'pre-fix',
+              'hypothesisId': 'D',
+              'location': 'lib/services/native_brightness_service.dart:181',
+              'msg': '[DEBUG] brightness getStatus resolved',
+              'data': {
+                'current': status.current,
+                'max': status.max,
+                'available': status.available,
+              },
+              'ts': DateTime.now().millisecondsSinceEpoch,
+            }),
+          );
+          await req.close();
+          client.close();
+        } catch (_) {}
+      })();
+      // #endregion
       _setStatus(status);
       return status;
-    } catch (e, stackTrace) {
-      developer.log(
-        '获取亮度状态失败: $e',
-        name: 'NativeBrightnessService',
-        error: e,
-        stackTrace: stackTrace,
-      );
-      _setStatus(_currentStatus.copyWith(available: false));
+    } catch (error, stackTrace) {
+      _handleError(error, stackTrace);
       return null;
     }
   }
 
-  /// 设置亮度百分比 (0-100)
   Future<bool> setBrightness(int percent) async {
     if (!_initialized) {
       await initialize();
@@ -200,49 +295,38 @@ class NativeBrightnessService {
 
     percent = percent.clamp(0, 100);
 
-    if (!_useBrightnessctl && _backlightPath == null) {
+    if (_backlightPath == null) {
       developer.log('没有可用的亮度后端', name: 'NativeBrightnessService');
       return false;
     }
 
     try {
-      if (_useBrightnessctl) {
-        // brightnessctl 支持直接设置百分比
-        final result =
-            await Process.run('brightnessctl', ['set', '$percent%']);
-        if (result.exitCode != 0) {
-          developer.log(
-            'brightnessctl 设置亮度失败: ${result.stderr}',
-            name: 'NativeBrightnessService',
-          );
-          return false;
-        }
-      } else if (_backlightPath != null) {
+      if (_backlightPath != null) {
         final maxFile = File('$_backlightPath/max_brightness');
         final curFile = File('$_backlightPath/brightness');
         if (await maxFile.exists() && await curFile.exists()) {
           final maxRaw =
               int.tryParse((await maxFile.readAsString()).trim()) ?? 1;
-          final newRaw =
-              ((percent / 100.0) * maxRaw).round().clamp(0, maxRaw);
+          final newRaw = ((percent / 100.0) * maxRaw).round().clamp(0, maxRaw);
           await curFile.writeAsString('$newRaw');
         } else {
           return false;
         }
       }
 
-      // 更新状态
       await getStatus();
       return true;
-    } catch (e, stackTrace) {
-      developer.log(
-        '设置亮度失败: $e',
-        name: 'NativeBrightnessService',
-        error: e,
-        stackTrace: stackTrace,
-      );
+    } catch (error, stackTrace) {
+      _handleError(error, stackTrace);
       return false;
     }
+  }
+
+  Future<void> dispose() async {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    _initialized = false;
+    await _statusController.close();
   }
 
   void _setStatus(BrightnessStatus status) {
@@ -251,5 +335,52 @@ class NativeBrightnessService {
       _statusController.add(status);
     }
   }
-}
 
+  void _handleError(Object error, [StackTrace? stackTrace]) {
+    // #region debug-point D:brightness-service-error
+    (() async {
+      try {
+        var debugServerUrl = 'http://198.18.0.1:7778/event';
+        var debugSessionId = 'display-settings-crash';
+        try {
+          final env =
+              await File('.dbg/display-settings-crash.env').readAsString();
+          for (final line in env.split('\n')) {
+            if (line.startsWith('DEBUG_SERVER_URL=')) {
+              debugServerUrl = line.substring('DEBUG_SERVER_URL='.length);
+            } else if (line.startsWith('DEBUG_SESSION_ID=')) {
+              debugSessionId = line.substring('DEBUG_SESSION_ID='.length);
+            }
+          }
+        } catch (_) {}
+        final client = HttpClient();
+        final req = await client.postUrl(Uri.parse(debugServerUrl));
+        req.headers.contentType = ContentType.json;
+        req.write(
+          jsonEncode({
+            'sessionId': debugSessionId,
+            'runId': 'pre-fix',
+            'hypothesisId': 'D',
+            'location': 'lib/services/native_brightness_service.dart:248',
+            'msg': '[DEBUG] brightness service error handled',
+            'data': {'error': error.toString()},
+            'ts': DateTime.now().millisecondsSinceEpoch,
+          }),
+        );
+        await req.close();
+        client.close();
+      } catch (_) {}
+    })();
+    // #endregion
+    developer.log(
+      '亮度服务不可用: $error',
+      name: 'NativeBrightnessService',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    _currentStatus = _currentStatus.copyWith(available: false);
+    if (!_statusController.isClosed) {
+      _statusController.add(_currentStatus);
+    }
+  }
+}

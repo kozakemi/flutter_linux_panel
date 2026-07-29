@@ -17,8 +17,8 @@ limitations under the License.
 import '../models/wifi_models.dart';
 
 /// WiFi 服务统一接口
-/// 
-/// 定义了 WiFi 管理的标准接口，支持原生（D-Bus）和 WebSocket 两种实现
+///
+/// 定义基于 D-Bus/NetworkManager 的 WiFi 管理接口。
 abstract class WiFiServiceInterface {
   /// 服务名称标识
   String get serviceName;
@@ -54,7 +54,7 @@ abstract class WiFiServiceInterface {
   Future<void> dispose();
 
   /// 开关 WiFi
-  /// 
+  ///
   /// [enable] true 开启，false 关闭
   /// 返回操作是否成功
   Future<bool> toggleWiFi(bool enable);
@@ -66,7 +66,7 @@ abstract class WiFiServiceInterface {
   Future<WiFiScanResult?> scanNetworks();
 
   /// 连接到指定 WiFi 网络
-  /// 
+  ///
   /// [ssid] 网络名称
   /// [password] 可选密码
   /// 返回连接是否成功
