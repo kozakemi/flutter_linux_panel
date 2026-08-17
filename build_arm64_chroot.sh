@@ -2,6 +2,18 @@
 
 set -euo pipefail
 
+# First/full build:
+#   ./build_arm64_chroot.sh
+#
+# Subsequent incremental release build:
+#   FAST_BUILD=1 ./build_arm64_chroot.sh
+#
+# Fast development build (skips AOT optimization):
+#   FAST_BUILD=1 BUILD_MODE=debug ./build_arm64_chroot.sh
+#
+# Tune QEMU compiler concurrency when the host is memory constrained:
+#   FAST_BUILD=1 BUILD_JOBS=2 ./build_arm64_chroot.sh
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${ROOT_DIR}"
 
@@ -16,8 +28,67 @@ TMP_CACHE_DIR="${WORK_CACHE_DIR}/tmp"
 APT_CACHE_DIR="${WORK_CACHE_DIR}/apt-cache"
 APT_LISTS_DIR="${WORK_CACHE_DIR}/apt-lists"
 RESOLV_CACHE="${WORK_CACHE_DIR}/resolv.conf"
-INSTALL_DEPS="${INSTALL_DEPS:-1}"
-FREE_IMAGE_SPACE="${FREE_IMAGE_SPACE:-1}"
+FAST_BUILD="${FAST_BUILD:-0}"
+BUILD_MODE="${BUILD_MODE:-release}"
+BUILD_JOBS="${BUILD_JOBS:-}"
+VERBOSE_BUILD="${VERBOSE_BUILD:-}"
+SKIP_PUB_GET="${SKIP_PUB_GET:-auto}"
+
+if [ "${FAST_BUILD}" = "1" ]; then
+  INSTALL_DEPS="${INSTALL_DEPS:-0}"
+  FREE_IMAGE_SPACE="${FREE_IMAGE_SPACE:-0}"
+  VERBOSE_BUILD="${VERBOSE_BUILD:-0}"
+else
+  INSTALL_DEPS="${INSTALL_DEPS:-1}"
+  FREE_IMAGE_SPACE="${FREE_IMAGE_SPACE:-1}"
+  VERBOSE_BUILD="${VERBOSE_BUILD:-1}"
+fi
+
+if [ "${BUILD_MODE}" != "release" ] && [ "${BUILD_MODE}" != "debug" ]; then
+  echo "[ERROR] BUILD_MODE must be release or debug."
+  exit 1
+fi
+
+if [ -z "${BUILD_JOBS}" ]; then
+  HOST_JOBS="$(nproc)"
+  if [ "${HOST_JOBS}" -gt 4 ]; then
+    BUILD_JOBS=4
+  else
+    BUILD_JOBS="${HOST_JOBS}"
+  fi
+fi
+
+PUB_INPUT_HASH_FILE="${WORK_CACHE_DIR}/pub-input.sha256"
+CURRENT_PUB_INPUT_HASH="$(
+  {
+    sha256sum "${ROOT_DIR}/pubspec.yaml"
+    if [ -f "${ROOT_DIR}/pubspec.lock" ]; then
+      sha256sum "${ROOT_DIR}/pubspec.lock"
+    fi
+  } | sha256sum | awk '{print $1}'
+)"
+RUN_PUB_GET=1
+if [ "${SKIP_PUB_GET}" = "1" ]; then
+  RUN_PUB_GET=0
+elif [ "${SKIP_PUB_GET}" = "auto" ] &&
+     [ -f "${PUB_INPUT_HASH_FILE}" ] &&
+     [ -f "${ROOT_DIR}/.dart_tool/package_config.json" ] &&
+     [ "$(cat "${PUB_INPUT_HASH_FILE}")" = "${CURRENT_PUB_INPUT_HASH}" ]; then
+  RUN_PUB_GET=0
+fi
+
+BUILD_VERBOSITY_FLAG=""
+if [ "${VERBOSE_BUILD}" = "1" ]; then
+  BUILD_VERBOSITY_FLAG="--verbose"
+fi
+
+BUILD_STARTED_AT="${SECONDS}"
+echo "[INFO] Build configuration:"
+echo "       FAST_BUILD=${FAST_BUILD}"
+echo "       BUILD_MODE=${BUILD_MODE}"
+echo "       BUILD_JOBS=${BUILD_JOBS}"
+echo "       RUN_PUB_GET=${RUN_PUB_GET}"
+echo "       VERBOSE_BUILD=${VERBOSE_BUILD}"
 
 # Packages required by audioplayers_elinux / video_player_elinux and build tools.
 CHROOT_APT_PACKAGES=(
@@ -172,6 +243,8 @@ if ${SUDO} chroot "${CHROOT_MNT}" /usr/bin/qemu-aarch64-static /bin/bash -lc "
   export TMPDIR=/tmp
   export PUB_CACHE=/root/.pub-cache
   export DEBIAN_FRONTEND=noninteractive
+  export CMAKE_BUILD_PARALLEL_LEVEL='${BUILD_JOBS}'
+  export NINJAFLAGS='-j${BUILD_JOBS}'
 
   apply_known_source_patches() {
     local elinux_cmake='${PROJECT_IN_CHROOT}/elinux/CMakeLists.txt'
@@ -250,11 +323,25 @@ if ${SUDO} chroot "${CHROOT_MNT}" /usr/bin/qemu-aarch64-static /bin/bash -lc "
   fi
 
   cd '${PROJECT_IN_CHROOT}'
-  flutter-elinux --version
-  flutter-elinux pub get
+  if [ '${FAST_BUILD}' != '1' ]; then
+    flutter-elinux --version
+  fi
+  if [ '${RUN_PUB_GET}' = '1' ]; then
+    echo '[INFO] Resolving Flutter packages...'
+    flutter-elinux pub get
+  else
+    echo '[INFO] pubspec inputs unchanged; skipping pub get.'
+  fi
   apply_known_source_patches
-  flutter-elinux build elinux --target-arch=arm64 --release --verbose
+  echo '[INFO] Building with ${BUILD_JOBS} parallel job(s)...'
+  flutter-elinux build elinux \
+    --target-arch=arm64 \
+    --${BUILD_MODE} \
+    --no-pub \
+    ${BUILD_VERBOSITY_FLAG}
 "; then
+  printf '%s\n' "${CURRENT_PUB_INPUT_HASH}" > "${PUB_INPUT_HASH_FILE}"
+  echo "[INFO] Total build time: $((SECONDS - BUILD_STARTED_AT)) seconds"
   echo "[OK] Chroot build finished."
 else
   echo "[ERROR] Chroot build failed."

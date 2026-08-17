@@ -18,23 +18,44 @@ class SerialPortService extends ChangeNotifier {
 
   static final SerialPortService instance = SerialPortService._();
 
-  final List<String> _output = <String>[];
+  static const int _maxOutputCharacters = 128 * 1024;
+
+  String _output = '';
+  int _outputRevision = 0;
+  int _outputStartOffset = 0;
+  int _outputEndOffset = 0;
+  Timer? _notifyTimer;
   Process? _readerProcess;
+  RandomAccessFile? _writer;
+  Future<void> _pendingWrite = Future<void>.value();
+  final _AnsiEscapeFilter _ansiFilter = _AnsiEscapeFilter();
   bool _opening = false;
   int _requestId = 0;
 
   String? _device;
   int _baudRate = 115200;
   SerialParity _parity = SerialParity.none;
+  List<String> _devices = const <String>[];
+  DateTime? _lastDeviceScan;
 
-  List<String> get output => List<String>.unmodifiable(_output);
+  String get output => _output;
+  int get outputRevision => _outputRevision;
+  int get outputStartOffset => _outputStartOffset;
+  int get outputEndOffset => _outputEndOffset;
   bool get open => _readerProcess != null;
   bool get opening => _opening;
   String? get device => _device;
   int get baudRate => _baudRate;
   SerialParity get parity => _parity;
+  List<String> get devices => List<String>.unmodifiable(_devices);
 
-  Future<List<String>> scanDevices() async {
+  Future<List<String>> scanDevices({bool force = false}) async {
+    final lastScan = _lastDeviceScan;
+    if (!force &&
+        lastScan != null &&
+        DateTime.now().difference(lastScan) < const Duration(seconds: 3)) {
+      return devices;
+    }
     try {
       final entries = await Directory('/dev').list().toList();
       final devices = entries
@@ -47,6 +68,8 @@ class SerialPortService extends ChangeNotifier {
           )
           .toList()
         ..sort();
+      _devices = devices;
+      _lastDeviceScan = DateTime.now();
       return devices;
     } catch (error) {
       _appendSystem('扫描串口失败：$error');
@@ -112,6 +135,7 @@ class SerialPortService extends ChangeNotifier {
       }
 
       _readerProcess = process;
+      _writer = await File(device).open(mode: FileMode.write);
       _device = device;
       _baudRate = baudRate;
       _parity = parity;
@@ -134,11 +158,15 @@ class SerialPortService extends ChangeNotifier {
       unawaited(process.exitCode.then((exitCode) {
         if (_readerProcess != process) return;
         _readerProcess = null;
+        unawaited(_closeWriter());
         _opening = false;
         _appendSystem('串口已关闭，读取进程退出码: $exitCode');
       }));
     } catch (error) {
       if (requestId != _requestId) return;
+      _readerProcess?.kill(ProcessSignal.sigterm);
+      _readerProcess = null;
+      await _closeWriter();
       _opening = false;
       _appendSystem('打开串口失败：$error');
     }
@@ -158,27 +186,126 @@ class SerialPortService extends ChangeNotifier {
     _appendSystem(signalSent ? '正在关闭串口…' : '无法停止串口读取进程');
   }
 
+  Future<void> send(String data) {
+    if (data.isEmpty) return Future<void>.value();
+    if (!open || _writer == null) {
+      throw StateError('串口尚未打开');
+    }
+    final bytes = utf8.encode(data);
+    _pendingWrite = _pendingWrite.catchError((_) {}).then((_) async {
+      final writer = _writer;
+      if (!open || writer == null) throw StateError('串口已经关闭');
+      try {
+        await writer.writeFrom(bytes);
+      } catch (error) {
+        _appendSystem('发送失败：$error');
+        rethrow;
+      }
+    });
+    return _pendingWrite;
+  }
+
   void clearOutput() {
-    _output.clear();
-    notifyListeners();
+    _output = '';
+    _outputStartOffset = _outputEndOffset;
+    _scheduleNotify();
+  }
+
+  String outputAfter(int offset) {
+    if (offset <= _outputStartOffset) return _output;
+    if (offset >= _outputEndOffset) return '';
+    return _output.substring(offset - _outputStartOffset);
   }
 
   void _appendData(String data) {
     if (data.isEmpty) return;
-    _output.add(data);
-    _trimOutput();
-    notifyListeners();
+    final visible = _ansiFilter.convert(data);
+    if (visible.isNotEmpty) _append(visible);
   }
 
   void _appendSystem(String message) {
-    _output.add('\n[系统] $message\n');
-    _trimOutput();
-    notifyListeners();
+    _append('\n[系统] $message\n');
   }
 
-  void _trimOutput() {
-    if (_output.length > 4000) {
-      _output.removeRange(0, _output.length - 4000);
+  void _append(String value) {
+    _output += value;
+    _outputEndOffset += value.length;
+    if (_output.length > _maxOutputCharacters) {
+      final removed = _output.length - _maxOutputCharacters;
+      _output = _output.substring(removed);
+      _outputStartOffset += removed;
     }
+    _scheduleNotify();
+  }
+
+  void _scheduleNotify() {
+    _outputRevision++;
+    _notifyTimer ??= Timer(const Duration(milliseconds: 50), () {
+      _notifyTimer = null;
+      notifyListeners();
+    });
+  }
+
+  Future<void> _closeWriter() async {
+    final writer = _writer;
+    _writer = null;
+    if (writer != null) {
+      try {
+        await writer.close();
+      } catch (_) {}
+    }
+  }
+}
+
+/// Removes terminal control sequences that a plain-text preview cannot render.
+///
+/// The parser keeps its state between serial chunks because an ANSI sequence
+/// such as ESC[?2004h may be split across multiple reads.
+class _AnsiEscapeFilter {
+  static const int _text = 0;
+  static const int _escape = 1;
+  static const int _csi = 2;
+  static const int _osc = 3;
+  static const int _oscEscape = 4;
+
+  int _state = _text;
+
+  String convert(String input) {
+    final output = StringBuffer();
+    for (final rune in input.runes) {
+      switch (_state) {
+        case _text:
+          if (rune == 0x1b) {
+            _state = _escape;
+          } else if (rune == 0x9b) {
+            _state = _csi;
+          } else {
+            output.writeCharCode(rune);
+          }
+        case _escape:
+          if (rune == 0x5b) {
+            _state = _csi;
+          } else if (rune == 0x5d) {
+            _state = _osc;
+          } else if (rune == 0x1b) {
+            _state = _escape;
+          } else {
+            // Other ANSI escape commands consist of ESC plus this byte.
+            _state = _text;
+          }
+        case _csi:
+          // A CSI command ends with a byte in the range 0x40–0x7e.
+          if (rune >= 0x40 && rune <= 0x7e) _state = _text;
+        case _osc:
+          if (rune == 0x07) {
+            _state = _text;
+          } else if (rune == 0x1b) {
+            _state = _oscEscape;
+          }
+        case _oscEscape:
+          _state = rune == 0x5c ? _text : _osc;
+      }
+    }
+    return output.toString();
   }
 }

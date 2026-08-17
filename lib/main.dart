@@ -26,6 +26,7 @@ import 'services/display_service.dart';
 import 'services/theme_service.dart';
 import 'services/wallpaper_service.dart';
 import 'services/remote_web_service.dart';
+import 'services/weather_service.dart';
 import 'services/debug_service.dart';
 import 'services/bluetooth_service.dart';
 import 'services/wifi_service_provider.dart';
@@ -37,6 +38,7 @@ const bool showSeconds = true; // 控制是否显示秒
 
 // 使用相对比例而不是固定尺寸
 const double sidePanelWidthRatio = 0.2; // 侧边栏宽度占屏幕宽度的比例
+final rootNavigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,6 +49,7 @@ void main() async {
   // 初始化主题服务
   await ThemeService.instance.initialize();
   await WallpaperService.instance.initialize();
+  await WeatherService.instance.initialize();
   await RemoteWebService.instance.initialize();
 
   // 初始化调试服务
@@ -65,7 +68,112 @@ void main() async {
   }
 
   // debugRepaintRainbowEnabled = true;
+  RemoteWebService.instance.pairingPrompt = _showPairingPrompt;
   runApp(const MyApp());
+}
+
+Future<bool> _showPairingPrompt(String clientName, String expectedCode) async {
+  final context = rootNavigatorKey.currentContext;
+  if (context == null) return false;
+  var entered = '';
+  var error = '';
+  return await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            title: const Text('电脑请求配对'),
+            content: SizedBox(
+              width: 330,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('请在下方输入“$clientName”电脑上显示的 4 位代码'),
+                  const SizedBox(height: 14),
+                  Text(
+                    entered.padRight(4, '–').split('').join('  '),
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  if (error.isNotEmpty)
+                    Text(
+                      error,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  const SizedBox(height: 10),
+                  GridView.count(
+                    shrinkWrap: true,
+                    crossAxisCount: 3,
+                    childAspectRatio: 2.2,
+                    mainAxisSpacing: 6,
+                    crossAxisSpacing: 6,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      for (final value in const [
+                        '1',
+                        '2',
+                        '3',
+                        '4',
+                        '5',
+                        '6',
+                        '7',
+                        '8',
+                        '9',
+                        '清空',
+                        '0',
+                        '⌫',
+                      ])
+                        FilledButton.tonal(
+                          onPressed: () {
+                            setState(() {
+                              error = '';
+                              if (value == '清空') {
+                                entered = '';
+                              } else if (value == '⌫') {
+                                if (entered.isNotEmpty) {
+                                  entered = entered.substring(
+                                    0,
+                                    entered.length - 1,
+                                  );
+                                }
+                              } else if (entered.length < 4) {
+                                entered += value;
+                              }
+                            });
+                          },
+                          child: Text(value),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('拒绝'),
+              ),
+              FilledButton(
+                onPressed: entered.length == 4
+                    ? () {
+                        if (entered == expectedCode) {
+                          Navigator.pop(dialogContext, true);
+                        } else {
+                          setState(() {
+                            entered = '';
+                            error = '代码不正确，请重新输入';
+                          });
+                        }
+                      }
+                    : null,
+                child: const Text('确认配对'),
+              ),
+            ],
+          ),
+        ),
+      ) ??
+      false;
 }
 
 class MyApp extends StatelessWidget {
@@ -87,9 +195,10 @@ class MyApp extends StatelessWidget {
       useMaterial3: true,
       fontFamily: 'HarmonyOS Sans SC', // 应用中文字体
       visualDensity: VisualDensity(horizontal: dens, vertical: dens),
-      iconTheme: IconThemeData(size: iconSize),
+      iconTheme: IconThemeData(size: iconSize, color: colorScheme.onSurface),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
+          foregroundColor: colorScheme.onSurface,
           iconSize: iconSize,
           padding: EdgeInsets.all(8.0 * scaleFactor),
           minimumSize: Size(
@@ -131,6 +240,7 @@ class MyApp extends StatelessWidget {
         final themeMode = ThemeService.instance.materialThemeMode;
 
         return MaterialApp(
+          navigatorKey: rootNavigatorKey,
           title: 'Anime Clock',
           // debugShowCheckedModeBanner: false,
           theme: _buildTheme(scaleFactor, Brightness.light),
@@ -164,10 +274,7 @@ class ClockScreen extends StatefulWidget {
   State<ClockScreen> createState() => _ClockScreenState();
 }
 
-class _ClockScreenState extends State<ClockScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
+class _ClockScreenState extends State<ClockScreen> {
   // 使用ValueNotifier替代直接的状态变量，这样可以只在值变化时通知监听者
   final timeNotifier = ValueNotifier<DateTime>(DateTime.now());
   final wifiStatusNotifier = ValueNotifier<bool>(false);
@@ -182,8 +289,6 @@ class _ClockScreenState extends State<ClockScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-
     // 初始化时间
     timeNotifier.value = DateTime.now();
 
@@ -233,7 +338,6 @@ class _ClockScreenState extends State<ClockScreen>
     wifiStatusNotifier.dispose();
     bluetoothStatusNotifier.dispose();
     mqttStatusNotifier.dispose();
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -298,7 +402,6 @@ class _ClockScreenState extends State<ClockScreen>
                 bottom: 0,
                 width: sidePanelWidth,
                 child: SideTabBar(
-                  tabController: _tabController,
                   screenWidth: screenWidth,
                 ),
               ),
@@ -627,12 +730,10 @@ class TimeOnlyDisplay extends StatelessWidget {
 
 // 侧边栏组件 - 不需要频繁更新
 class SideTabBar extends StatelessWidget {
-  final TabController tabController;
   final double screenWidth;
 
   const SideTabBar({
     super.key,
-    required this.tabController,
     required this.screenWidth,
   });
 
@@ -641,78 +742,68 @@ class SideTabBar extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
       color: colorScheme.primaryContainer.withValues(alpha: 0.92),
-      child: RotatedBox(
-        quarterTurns: 1, // 旋转TabBar使其垂直
-        child: TabBar(
-          controller: tabController,
-          indicatorColor: Colors.transparent,
-          tabs: [
-            RotatedBox(
-              quarterTurns: 3,
-              child: Tab(
-                icon: SvgPicture.asset(
-                  'source/ico/setting.svg',
-                  width: screenWidth * 0.15,
-                  height: screenWidth * 0.15,
-                  colorFilter: ColorFilter.mode(
-                    colorScheme.onPrimaryContainer,
-                    BlendMode.srcIn,
-                  ),
-                ),
+      child: Column(
+        children: [
+          _SideNavButton(
+            asset: 'source/ico/setting.svg',
+            size: screenWidth * 0.09,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsPage()),
+            ),
+          ),
+          _SideNavButton(
+            asset: 'source/ico/calendar.svg',
+            size: screenWidth * 0.09,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CalendarPage()),
+            ),
+          ),
+          _SideNavButton(
+            asset: 'source/ico/modular.svg',
+            size: screenWidth * 0.09,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LaunchpadPage()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SideNavButton extends StatelessWidget {
+  const _SideNavButton({
+    required this.asset,
+    required this.size,
+    required this.onTap,
+  });
+
+  final String asset;
+  final double size;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Center(
+            child: SvgPicture.asset(
+              asset,
+              width: size,
+              height: size,
+              colorFilter: ColorFilter.mode(
+                colorScheme.onPrimaryContainer,
+                BlendMode.srcIn,
               ),
             ),
-            RotatedBox(
-              quarterTurns: 3,
-              child: Tab(
-                icon: SvgPicture.asset(
-                  'source/ico/calendar.svg',
-                  width: screenWidth * 0.15,
-                  height: screenWidth * 0.15,
-                  colorFilter: ColorFilter.mode(
-                    colorScheme.onPrimaryContainer,
-                    BlendMode.srcIn,
-                  ),
-                ),
-              ),
-            ),
-            RotatedBox(
-              quarterTurns: 3,
-              child: Tab(
-                icon: SvgPicture.asset(
-                  'source/ico/modular.svg',
-                  width: screenWidth * 0.15,
-                  height: screenWidth * 0.15,
-                  colorFilter: ColorFilter.mode(
-                    colorScheme.onPrimaryContainer,
-                    BlendMode.srcIn,
-                  ),
-                ),
-              ),
-            ),
-          ],
-          onTap: (index) {
-            switch (index) {
-              case 0:
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const SettingsPage()),
-                );
-                break;
-              case 1:
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const CalendarPage()),
-                );
-                break;
-              case 2:
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const LaunchpadPage()),
-                );
-                break;
-            }
-          },
+          ),
         ),
       ),
     );

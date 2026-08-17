@@ -177,22 +177,25 @@ collect_runtime_deps "${E_LINUX_OUT_DIR}"
 # Create a self-contained run script inside the bundle.
 RUN_SCRIPT="${E_LINUX_OUT_DIR}/run_in_bundle.sh"
 cat > "${RUN_SCRIPT}" <<'EOF'
-#!/usr/bin/env sh
+#!/bin/sh
 set -eu
-DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-cd "$DIR"
 
-export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/0}"
-export LD_LIBRARY_PATH="$DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+BUNDLE_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 
-if [ ! -f "$DIR/lib/libflutter_engine.so" ]; then
-  echo "[ERROR] $DIR/lib/libflutter_engine.so not found."
-  echo "         Current directory: $DIR"
-  ls -l "$DIR/lib" || true
-  exit 1
+export LD_LIBRARY_PATH="$BUNDLE_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+if [ -z "${WAYLAND_DISPLAY:-}" ]; then
+    for socket in "$XDG_RUNTIME_DIR"/wayland-*; do
+        if [ -S "$socket" ]; then
+            WAYLAND_DISPLAY=${socket##*/}
+            export WAYLAND_DISPLAY
+            break
+        fi
+    done
 fi
 
-exec ./demo1 --bundle=. --fullscreen "$@"
+exec "$BUNDLE_DIR/demo1" --bundle="$BUNDLE_DIR" "$@" --fullscreen
 EOF
 chmod +x "${RUN_SCRIPT}"
 

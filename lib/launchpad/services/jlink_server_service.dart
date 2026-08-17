@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,15 +13,19 @@ class JLinkServerService extends ChangeNotifier {
   static const String executable = '/opt/SEGGER/JLink/JLinkRemoteServerCLExe';
   static const int port = 19020;
 
+  static const int _maxLogCharacters = 128 * 1024;
+
   final List<String> _logs = <String>[];
+  int _logCharacters = 0;
+  Timer? _notifyTimer;
   final List<String> _addresses = <String>[];
   Process? _process;
   bool _starting = false;
   bool _addressesLoading = false;
   int _processRequestId = 0;
 
-  List<String> get logs => List<String>.unmodifiable(_logs);
-  List<String> get addresses => List<String>.unmodifiable(_addresses);
+  List<String> get logs => UnmodifiableListView(_logs);
+  List<String> get addresses => UnmodifiableListView(_addresses);
   bool get running => _process != null;
   bool get starting => _starting;
   int? get processId => _process?.pid;
@@ -121,14 +126,19 @@ class JLinkServerService extends ChangeNotifier {
 
   void clearLogs() {
     _logs.clear();
+    _logCharacters = 0;
     notifyListeners();
   }
 
   void _appendLog(String message) {
     _logs.add(message);
-    if (_logs.length > 2000) {
-      _logs.removeRange(0, _logs.length - 2000);
+    _logCharacters += message.length;
+    while (_logCharacters > _maxLogCharacters && _logs.length > 1) {
+      _logCharacters -= _logs.removeAt(0).length;
     }
-    notifyListeners();
+    _notifyTimer ??= Timer(const Duration(milliseconds: 50), () {
+      _notifyTimer = null;
+      notifyListeners();
+    });
   }
 }

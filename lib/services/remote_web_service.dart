@@ -8,6 +8,9 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'wallpaper_service.dart';
+import 'weather_service.dart';
+import '../launchpad/services/serial_port_service.dart';
+import 'remote_launchpad_service.dart';
 
 class RemoteWebService extends ChangeNotifier {
   RemoteWebService._();
@@ -15,14 +18,20 @@ class RemoteWebService extends ChangeNotifier {
   static final RemoteWebService instance = RemoteWebService._();
 
   static const int port = 19080;
+  static const int discoveryPort = 19081;
   static const int _maxUploadBytes = 20 * 1024 * 1024;
   static const String _enabledKey = 'remote_web_enabled';
 
   HttpServer? _server;
+  RawDatagramSocket? _discoverySocket;
   bool _starting = false;
   String? _error;
   String _token = '';
   List<String> _addresses = const <String>[];
+  final Map<String, String> _pairedClients = {};
+  String _deviceId = '';
+
+  Future<bool> Function(String clientName, String code)? pairingPrompt;
 
   bool get enabled => _server != null;
   bool get starting => _starting;
@@ -32,7 +41,24 @@ class RemoteWebService extends ChangeNotifier {
       _addresses.isEmpty ? null : _urlForAddress(_addresses.first);
 
   Future<void> initialize() async {
+    await RemoteLaunchpadService.instance.initialize();
     final prefs = await SharedPreferences.getInstance();
+    _deviceId = prefs.getString('remote_device_id') ?? '';
+    if (_deviceId.isEmpty) {
+      _deviceId = _randomSecret(12);
+      await prefs.setString('remote_device_id', _deviceId);
+    }
+    final paired = prefs.getString('remote_paired_clients');
+    if (paired != null) {
+      try {
+        final value = jsonDecode(paired);
+        if (value is Map<String, dynamic>) {
+          _pairedClients.addAll(
+            value.map((key, value) => MapEntry(key, '$value')),
+          );
+        }
+      } catch (_) {}
+    }
     if (prefs.getBool(_enabledKey) ?? false) {
       await start();
     } else {
@@ -60,11 +86,14 @@ class RemoteWebService extends ChangeNotifier {
         port,
         shared: true,
       );
+      await _startDiscovery();
       unawaited(_serve(_server!));
       await refreshAddresses();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_enabledKey, true);
     } catch (error) {
+      _discoverySocket?.close();
+      _discoverySocket = null;
       _server = null;
       _error = '启动失败：$error';
       final prefs = await SharedPreferences.getInstance();
@@ -79,6 +108,8 @@ class RemoteWebService extends ChangeNotifier {
     final server = _server;
     _server = null;
     _token = '';
+    _discoverySocket?.close();
+    _discoverySocket = null;
     if (server != null) {
       await server.close(force: true);
     }
@@ -120,11 +151,37 @@ class RemoteWebService extends ChangeNotifier {
 
   Future<void> _handleRequest(HttpRequest request) async {
     try {
-      if (request.uri.queryParameters['token'] != _token || _token.isEmpty) {
+      if (request.method == 'POST' &&
+          request.uri.path == '/api/launchpad/pair') {
+        await _handlePairRequest(request);
+        return;
+      }
+      if (request.method == 'GET' &&
+          request.uri.path == '/api/launchpad/device') {
+        await _sendJson(request.response, HttpStatus.ok, {
+          'type': 'flutterPanel',
+          'deviceId': _deviceId,
+          'name': Platform.localHostname,
+          'port': port,
+        });
+        return;
+      }
+      final query = request.uri.queryParameters;
+      final tokenValid = _token.isNotEmpty && query['token'] == _token;
+      final pairedValid = query['clientId'] != null &&
+          _pairedClients[query['clientId']] == query['secret'];
+      if (!tokenValid && !pairedValid) {
         await _sendText(request.response, HttpStatus.forbidden, '访问链接无效');
         return;
       }
 
+      if (request.method == 'GET' &&
+          request.uri.path == '/ws/launchpad' &&
+          WebSocketTransformer.isUpgradeRequest(request)) {
+        final socket = await WebSocketTransformer.upgrade(request);
+        RemoteLaunchpadService.instance.accept(socket);
+        return;
+      }
       if (request.method == 'GET' && request.uri.path == '/') {
         request.response.headers.contentType = ContentType.html;
         request.response.write(_webPage);
@@ -133,6 +190,37 @@ class RemoteWebService extends ChangeNotifier {
       }
       if (request.method == 'POST' && request.uri.path == '/api/wallpaper') {
         await _handleWallpaperUpload(request);
+        return;
+      }
+      if (request.method == 'GET' &&
+          request.uri.path == '/api/weather-config') {
+        await _sendWeatherConfiguration(request.response);
+        return;
+      }
+      if (request.method == 'POST' &&
+          request.uri.path == '/api/weather-config') {
+        await _handleWeatherConfiguration(request);
+        return;
+      }
+      if (request.method == 'GET' && request.uri.path == '/api/serial') {
+        await _sendSerialStatus(request);
+        return;
+      }
+      if (request.method == 'POST' && request.uri.path == '/api/serial/open') {
+        await _handleSerialOpen(request);
+        return;
+      }
+      if (request.method == 'POST' && request.uri.path == '/api/serial/send') {
+        await _handleSerialSend(request);
+        return;
+      }
+      if (request.method == 'POST' && request.uri.path == '/api/serial/close') {
+        SerialPortService.instance.closePort();
+        await _sendJson(
+          request.response,
+          HttpStatus.ok,
+          {'ok': true, 'message': '正在关闭串口'},
+        );
         return;
       }
       await _sendText(request.response, HttpStatus.notFound, '未找到');
@@ -144,6 +232,82 @@ class RemoteWebService extends ChangeNotifier {
       request.response.write(jsonEncode({'ok': false, 'error': '$error'}));
       await request.response.close();
     }
+  }
+
+  Future<void> _startDiscovery() async {
+    _discoverySocket?.close();
+    final socket = await RawDatagramSocket.bind(
+      InternetAddress.anyIPv4,
+      discoveryPort,
+      reuseAddress: true,
+    );
+    socket.broadcastEnabled = true;
+    _discoverySocket = socket;
+    socket.listen((event) {
+      if (event != RawSocketEvent.read) return;
+      final datagram = socket.receive();
+      if (datagram == null ||
+          utf8.decode(datagram.data, allowMalformed: true) !=
+              'FLUTTER_PANEL_DISCOVER_V1') {
+        return;
+      }
+      socket.send(
+        utf8.encode(
+          jsonEncode({
+            'type': 'flutterPanel',
+            'deviceId': _deviceId,
+            'name': Platform.localHostname,
+            'port': port,
+          }),
+        ),
+        datagram.address,
+        datagram.port,
+      );
+    });
+  }
+
+  Future<void> _handlePairRequest(HttpRequest request) async {
+    final body = await _readJsonBody(request);
+    final clientId = body['clientId'] as String? ?? '';
+    final clientName = body['clientName'] as String? ?? clientId;
+    final code = body['code'] as String? ?? '';
+    final secret = body['secret'] as String? ?? '';
+    if (!RegExp(r'^[A-Za-z0-9_-]{1,64}$').hasMatch(clientId) ||
+        !RegExp(r'^\d{4}$').hasMatch(code) ||
+        secret.length < 24) {
+      await _sendJson(
+        request.response,
+        HttpStatus.badRequest,
+        {'ok': false, 'error': '配对参数无效'},
+      );
+      return;
+    }
+    final accepted = await pairingPrompt?.call(clientName, code) ?? false;
+    if (!accepted) {
+      await _sendJson(
+        request.response,
+        HttpStatus.forbidden,
+        {'ok': false, 'error': '开发板未确认配对'},
+      );
+      return;
+    }
+    _pairedClients[clientId] = secret;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'remote_paired_clients',
+      jsonEncode(_pairedClients),
+    );
+    await _sendJson(request.response, HttpStatus.ok, {
+      'ok': true,
+      'deviceId': _deviceId,
+      'name': Platform.localHostname,
+    });
+  }
+
+  String _randomSecret(int byteCount) {
+    return base64UrlEncode(
+      List<int>.generate(byteCount, (_) => Random.secure().nextInt(256)),
+    ).replaceAll('=', '');
   }
 
   Future<void> _handleWallpaperUpload(HttpRequest request) async {
@@ -211,6 +375,151 @@ class RemoteWebService extends ChangeNotifier {
     );
   }
 
+  Future<void> _sendWeatherConfiguration(HttpResponse response) async {
+    final weather = WeatherService.instance;
+    await _sendJson(
+      response,
+      HttpStatus.ok,
+      {
+        'ok': true,
+        'autoLocation': weather.autoLocation,
+        'location': weather.manualLocation,
+        'hasApiKey': weather.hasApiKey,
+      },
+    );
+  }
+
+  Future<void> _handleWeatherConfiguration(HttpRequest request) async {
+    if (request.contentLength > 64 * 1024) {
+      await _sendJson(
+        request.response,
+        HttpStatus.requestEntityTooLarge,
+        {'ok': false, 'error': '配置数据过大'},
+      );
+      return;
+    }
+    final body = await utf8.decoder.bind(request).join();
+    final value = jsonDecode(body);
+    if (value is! Map<String, dynamic>) {
+      await _sendJson(
+        request.response,
+        HttpStatus.badRequest,
+        {'ok': false, 'error': '配置格式不正确'},
+      );
+      return;
+    }
+    final autoLocation = value['autoLocation'] as bool? ?? true;
+    final location = value['location'] as String? ?? '';
+    final apiKey = value['apiKey'] as String?;
+    if (!autoLocation && location.trim().isEmpty) {
+      await _sendJson(
+        request.response,
+        HttpStatus.badRequest,
+        {'ok': false, 'error': '手动定位时必须填写城市或地区'},
+      );
+      return;
+    }
+    await WeatherService.instance.updateConfiguration(
+      autoLocation: autoLocation,
+      location: location,
+      apiKey: apiKey,
+    );
+    await _sendJson(
+      request.response,
+      HttpStatus.ok,
+      {
+        'ok': true,
+        'message': WeatherService.instance.error ?? '天气配置已更新',
+        'weatherAvailable': WeatherService.instance.weather != null,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> _readJsonBody(HttpRequest request) async {
+    if (request.contentLength > 64 * 1024) {
+      throw const FormatException('请求数据过大');
+    }
+    final value = jsonDecode(await utf8.decoder.bind(request).join());
+    if (value is! Map<String, dynamic>) {
+      throw const FormatException('请求格式不正确');
+    }
+    return value;
+  }
+
+  Future<void> _sendSerialStatus(HttpRequest request) async {
+    final serial = SerialPortService.instance;
+    final since = int.tryParse(request.uri.queryParameters['since'] ?? '') ?? 0;
+    final devices = await serial.scanDevices();
+    await _sendJson(
+      request.response,
+      HttpStatus.ok,
+      {
+        'ok': true,
+        'open': serial.open,
+        'opening': serial.opening,
+        'device': serial.device ?? '',
+        'baudRate': serial.baudRate,
+        'parity': serial.parity.name,
+        'devices': devices,
+        'output': serial.outputAfter(since),
+        'outputStart': serial.outputStartOffset,
+        'outputEnd': serial.outputEndOffset,
+        'reset': since < serial.outputStartOffset,
+      },
+    );
+  }
+
+  Future<void> _handleSerialOpen(HttpRequest request) async {
+    final value = await _readJsonBody(request);
+    final device = (value['device'] as String? ?? '').trim();
+    final baudRate = value['baudRate'] as int? ?? 115200;
+    final parityName = value['parity'] as String? ?? 'none';
+    final parity = SerialParity.values.firstWhere(
+      (item) => item.name == parityName,
+      orElse: () => SerialParity.none,
+    );
+    if (!RegExp(r'^/dev/tty[A-Za-z0-9._-]+$').hasMatch(device)) {
+      await _sendJson(
+        request.response,
+        HttpStatus.badRequest,
+        {'ok': false, 'error': '串口设备路径无效'},
+      );
+      return;
+    }
+    await SerialPortService.instance.openPort(
+      device: device,
+      baudRate: baudRate,
+      parity: parity,
+    );
+    await _sendJson(
+      request.response,
+      HttpStatus.ok,
+      {
+        'ok': SerialPortService.instance.open,
+        'error': SerialPortService.instance.open ? '' : '串口打开失败，请查看终端输出',
+      },
+    );
+  }
+
+  Future<void> _handleSerialSend(HttpRequest request) async {
+    final value = await _readJsonBody(request);
+    final data = value['data'] as String? ?? '';
+    if (data.length > 16 * 1024) {
+      await _sendJson(
+        request.response,
+        HttpStatus.badRequest,
+        {'ok': false, 'error': '单次发送不能超过 16 KB'},
+      );
+      return;
+    }
+    await SerialPortService.instance.send(data);
+    await _sendJson(
+      request.response,
+      HttpStatus.ok,
+      {'ok': true},
+    );
+  }
+
   Future<void> _sendText(
     HttpResponse response,
     int status,
@@ -225,7 +534,7 @@ class RemoteWebService extends ChangeNotifier {
   Future<void> _sendJson(
     HttpResponse response,
     int status,
-    Map<String, Object> body,
+    Map<String, Object?> body,
   ) async {
     response.statusCode = status;
     response.headers.contentType = ContentType.json;
@@ -256,12 +565,13 @@ class RemoteWebService extends ChangeNotifier {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>设备壁纸设置</title>
+  <title>设备远程设置</title>
   <style>
     :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center;
       background: #f4f6f8; color: #1b1b1f; }
-    main { width: min(88vw, 520px); padding: 28px; border-radius: 24px;
+    main { width: min(88vw, 560px); padding: 28px; margin: 24px 0;
+      border-radius: 24px;
       background: white; box-shadow: 0 12px 40px #0002; }
     h1 { margin: 0 0 8px; font-size: 24px; }
     p { color: #5f6368; }
@@ -269,9 +579,23 @@ class RemoteWebService extends ChangeNotifier {
       border: 2px dashed #9aa0a6; border-radius: 18px; overflow: hidden; }
     img { display: none; width: 100%; max-height: 320px; object-fit: contain; }
     input { max-width: 90%; }
+    input[type=text], input[type=password] { box-sizing: border-box; width: 100%;
+      max-width: none; padding: 12px; margin-top: 6px; border: 1px solid #9aa0a6;
+      border-radius: 12px; font-size: 16px; background: transparent; color: inherit; }
+    label.field { display: block; margin-top: 14px; }
+    label.check { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+    hr { border: 0; border-top: 1px solid #9aa0a655; margin: 32px 0; }
     button { width: 100%; margin-top: 18px; padding: 14px; border: 0;
       border-radius: 999px; font-size: 16px; background: #1967d2; color: white; }
     button:disabled { opacity: .5; }
+    .row { display: flex; gap: 10px; align-items: center; }
+    .row > * { min-width: 0; flex: 1; }
+    select { width: 100%; padding: 11px; border-radius: 10px;
+      border: 1px solid #9aa0a6; background: transparent; color: inherit; }
+    #terminal { box-sizing: border-box; width: 100%; height: 280px;
+      overflow: auto; white-space: pre; padding: 12px; border-radius: 12px;
+      background: #111318; color: #d6e1e8; font: 13px monospace; }
+    .compact { width: auto; margin-top: 0; padding: 11px 18px; }
     #status { min-height: 24px; margin-top: 12px; }
     @media (prefers-color-scheme: dark) {
       body { background: #111318; color: #e3e2e6; }
@@ -290,6 +614,47 @@ class RemoteWebService extends ChangeNotifier {
   </label>
   <button id="upload" disabled>应用为壁纸</button>
   <div id="status"></div>
+  <hr>
+  <h1>天气设置</h1>
+  <p>使用 OpenWeather 当前天气服务。API Key 不会在网页中回显。</p>
+  <label class="check">
+    <input id="autoLocation" type="checkbox"> 根据公网 IP 自动定位
+  </label>
+  <label class="field">城市或地区
+    <input id="locationInput" type="text" placeholder="例如：深圳 或 Shenzhen,CN">
+  </label>
+  <label class="field">OpenWeather API Key
+    <input id="apiKey" type="password" autocomplete="off" placeholder="输入新的 API Key">
+  </label>
+  <button id="saveWeather">保存并刷新天气</button>
+  <div id="weatherStatus"></div>
+  <hr>
+  <h1>串口终端</h1>
+  <p>页面关闭后串口仍保持打开，直至手动关闭。</p>
+  <div class="row">
+    <select id="serialDevice"></select>
+    <select id="serialBaud">
+      <option>9600</option><option>19200</option><option>38400</option>
+      <option>57600</option><option selected>115200</option>
+      <option>230400</option><option>460800</option><option>921600</option>
+    </select>
+    <select id="serialParity">
+      <option value="none">无校验</option>
+      <option value="odd">奇校验</option>
+      <option value="even">偶校验</option>
+    </select>
+  </div>
+  <div class="row">
+    <button id="serialOpen">打开串口</button>
+    <button id="serialClose">关闭串口</button>
+  </div>
+  <div id="serialStatus"></div>
+  <pre id="terminal"></pre>
+  <div class="row">
+    <input id="serialInput" type="text" placeholder="输入要发送的数据">
+    <label class="check"><input id="serialNewline" type="checkbox" checked>追加换行</label>
+    <button id="serialSend" class="compact">发送</button>
+  </div>
 </main>
 <script>
 const file = document.querySelector('#file');
@@ -297,6 +662,23 @@ const preview = document.querySelector('#preview');
 const hint = document.querySelector('#hint');
 const upload = document.querySelector('#upload');
 const status = document.querySelector('#status');
+const autoLocation = document.querySelector('#autoLocation');
+const locationInput = document.querySelector('#locationInput');
+const apiKey = document.querySelector('#apiKey');
+const saveWeather = document.querySelector('#saveWeather');
+const weatherStatus = document.querySelector('#weatherStatus');
+const serialDevice = document.querySelector('#serialDevice');
+const serialBaud = document.querySelector('#serialBaud');
+const serialParity = document.querySelector('#serialParity');
+const serialOpen = document.querySelector('#serialOpen');
+const serialClose = document.querySelector('#serialClose');
+const serialStatus = document.querySelector('#serialStatus');
+const terminal = document.querySelector('#terminal');
+const serialInput = document.querySelector('#serialInput');
+const serialNewline = document.querySelector('#serialNewline');
+const serialSend = document.querySelector('#serialSend');
+let serialOffset = 0;
+let serialPolling = false;
 file.onchange = () => {
   const selected = file.files[0];
   upload.disabled = !selected;
@@ -323,6 +705,145 @@ upload.onclick = async () => {
     upload.disabled = false;
   }
 };
+autoLocation.onchange = () => {
+  locationInput.disabled = autoLocation.checked;
+};
+async function loadWeatherConfig() {
+  try {
+    const response = await fetch('/api/weather-config' + location.search);
+    const config = await response.json();
+    autoLocation.checked = config.autoLocation;
+    locationInput.value = config.location || '';
+    locationInput.disabled = autoLocation.checked;
+    apiKey.placeholder = config.hasApiKey
+      ? '已配置；留空表示不修改'
+      : '请输入 OpenWeather API Key';
+  } catch (error) {
+    weatherStatus.textContent = '读取天气配置失败：' + error.message;
+  }
+}
+saveWeather.onclick = async () => {
+  saveWeather.disabled = true;
+  weatherStatus.textContent = '正在保存并获取天气…';
+  try {
+    const response = await fetch('/api/weather-config' + location.search, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        autoLocation: autoLocation.checked,
+        location: locationInput.value,
+        apiKey: apiKey.value
+      })
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || '保存失败');
+    apiKey.value = '';
+    apiKey.placeholder = '已配置；留空表示不修改';
+    weatherStatus.textContent = result.message;
+  } catch (error) {
+    weatherStatus.textContent = error.message;
+  } finally {
+    saveWeather.disabled = false;
+  }
+};
+loadWeatherConfig();
+async function serialRequest(path, options) {
+  const tokenQuery = location.search.replace(/^\?/, '');
+  const response = await fetch(
+    path + (path.includes('?') ? '&' : '?') + tokenQuery,
+    options
+  );
+  const result = await response.json();
+  if (!response.ok || !result.ok) throw new Error(result.error || '操作失败');
+  return result;
+}
+async function pollSerial() {
+  if (serialPolling) return;
+  serialPolling = true;
+  try {
+    const result = await serialRequest(
+      '/api/serial?since=' + serialOffset
+    );
+    const atBottom = terminal.scrollTop + terminal.clientHeight >=
+      terminal.scrollHeight - 24;
+    if (result.reset) terminal.textContent = result.output;
+    else terminal.textContent += result.output;
+    serialOffset = result.outputEnd;
+    if (terminal.textContent.length > 131072) {
+      terminal.textContent = terminal.textContent.slice(-131072);
+    }
+    if (atBottom) terminal.scrollTop = terminal.scrollHeight;
+    const selected = serialDevice.value;
+    serialDevice.innerHTML = '';
+    result.devices.forEach(device => {
+      const option = document.createElement('option');
+      option.value = device; option.textContent = device;
+      serialDevice.appendChild(option);
+    });
+    if (result.device && !result.devices.includes(result.device)) {
+      const option = document.createElement('option');
+      option.value = result.device; option.textContent = result.device;
+      serialDevice.appendChild(option);
+    }
+    if (result.open && result.device) serialDevice.value = result.device;
+    if (result.open) {
+      serialBaud.value = String(result.baudRate);
+      serialParity.value = result.parity;
+    } else if (selected) serialDevice.value = selected;
+    const busy = result.open || result.opening;
+    serialDevice.disabled = busy;
+    serialBaud.disabled = busy;
+    serialParity.disabled = busy;
+    serialOpen.disabled = busy || !serialDevice.value;
+    serialClose.disabled = !busy;
+    serialSend.disabled = !result.open;
+    serialInput.disabled = !result.open;
+    serialStatus.textContent = result.open
+      ? '已打开 ' + result.device
+      : result.opening ? '正在打开…' : '未打开';
+  } catch (error) {
+    serialStatus.textContent = '串口状态读取失败：' + error.message;
+  } finally {
+    serialPolling = false;
+  }
+}
+serialOpen.onclick = async () => {
+  serialOpen.disabled = true;
+  try {
+    await serialRequest('/api/serial/open', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        device: serialDevice.value,
+        baudRate: Number(serialBaud.value),
+        parity: serialParity.value
+      })
+    });
+  } catch (error) { serialStatus.textContent = error.message; }
+  pollSerial();
+};
+serialClose.onclick = async () => {
+  try {
+    await serialRequest('/api/serial/close', {method: 'POST'});
+  } catch (error) { serialStatus.textContent = error.message; }
+  pollSerial();
+};
+async function sendSerial() {
+  if (!serialInput.value) return;
+  const data = serialInput.value + (serialNewline.checked ? '\n' : '');
+  try {
+    await serialRequest('/api/serial/send', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({data})
+    });
+    serialInput.value = '';
+  } catch (error) { serialStatus.textContent = error.message; }
+}
+serialSend.onclick = sendSerial;
+serialInput.onkeydown = event => {
+  if (event.key === 'Enter') { event.preventDefault(); sendSerial(); }
+};
+pollSerial();
+setInterval(pollSerial, 300);
 </script>
 </body>
 </html>

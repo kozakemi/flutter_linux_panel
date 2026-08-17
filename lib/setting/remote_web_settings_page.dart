@@ -74,7 +74,7 @@ class _RemoteWebSettingsPageState extends State<RemoteWebSettingsPage> {
             child: SwitchListTile(
               secondary: const Icon(Icons.language),
               title: const Text('启用远程 Web 设置'),
-              subtitle: const Text('允许同一局域网中的手机或电脑设置壁纸'),
+              subtitle: const Text('允许同一局域网中的手机或电脑设置壁纸和天气'),
               value: _service.enabled,
               onChanged: _service.starting ? null : _setEnabled,
             ),

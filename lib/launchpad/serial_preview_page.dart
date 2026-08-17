@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../services/display_service.dart';
@@ -35,7 +36,7 @@ class _SerialPreviewPageState extends State<SerialPreviewPage> {
   int _selectedBaudRate = 115200;
   SerialParity _selectedParity = SerialParity.none;
   bool _scanning = false;
-  int _previousOutputCount = 0;
+  int _previousOutputRevision = 0;
 
   @override
   void initState() {
@@ -43,7 +44,7 @@ class _SerialPreviewPageState extends State<SerialPreviewPage> {
     _selectedDevice = _service.device;
     _selectedBaudRate = _service.baudRate;
     _selectedParity = _service.parity;
-    _previousOutputCount = _service.output.length;
+    _previousOutputRevision = _service.outputRevision;
     _service.addListener(_handleServiceChanged);
     unawaited(_scanDevices());
   }
@@ -59,7 +60,7 @@ class _SerialPreviewPageState extends State<SerialPreviewPage> {
   Future<void> _scanDevices() async {
     if (_scanning) return;
     setState(() => _scanning = true);
-    final devices = await _service.scanDevices();
+    final devices = await _service.scanDevices(force: true);
     if (!mounted) return;
     setState(() {
       _devices = devices;
@@ -75,9 +76,9 @@ class _SerialPreviewPageState extends State<SerialPreviewPage> {
 
   void _handleServiceChanged() {
     if (!mounted) return;
-    final outputCount = _service.output.length;
-    final shouldScroll = outputCount > _previousOutputCount;
-    _previousOutputCount = outputCount;
+    final revision = _service.outputRevision;
+    final shouldScroll = revision > _previousOutputRevision;
+    _previousOutputRevision = revision;
     setState(() {});
     if (!shouldScroll) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -88,6 +89,14 @@ class _SerialPreviewPageState extends State<SerialPreviewPage> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  void _handleHorizontalDrag(DragUpdateDetails details) {
+    if (!_horizontalScrollController.hasClients) return;
+    final position = _horizontalScrollController.position;
+    final target = (_horizontalScrollController.offset - details.delta.dx)
+        .clamp(position.minScrollExtent, position.maxScrollExtent);
+    _horizontalScrollController.jumpTo(target);
   }
 
   Future<void> _openPort() async {
@@ -280,17 +289,21 @@ class _SerialPreviewPageState extends State<SerialPreviewPage> {
                   thumbVisibility: true,
                   child: SingleChildScrollView(
                     controller: _verticalScrollController,
-                    child: Scrollbar(
-                      controller: _horizontalScrollController,
-                      thumbVisibility: true,
-                      notificationPredicate: (notification) =>
-                          notification.metrics.axis == Axis.horizontal,
-                      child: SingleChildScrollView(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      dragStartBehavior: DragStartBehavior.down,
+                      onHorizontalDragUpdate: _handleHorizontalDrag,
+                      child: Scrollbar(
                         controller: _horizontalScrollController,
-                        scrollDirection: Axis.horizontal,
-                        child: SelectionArea(
+                        thumbVisibility: true,
+                        notificationPredicate: (notification) =>
+                            notification.metrics.axis == Axis.horizontal,
+                        child: SingleChildScrollView(
+                          controller: _horizontalScrollController,
+                          scrollDirection: Axis.horizontal,
+                          physics: const NeverScrollableScrollPhysics(),
                           child: Text(
-                            output.join(),
+                            output,
                             softWrap: false,
                             style: const TextStyle(
                               color: Color(0xffd6e1e8),

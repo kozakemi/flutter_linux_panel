@@ -203,7 +203,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ListTile(
               leading: _icon(Icons.language),
               title: const Text('远程 Web 设置'),
-              subtitle: const Text('通过手机或电脑设置壁纸'),
+              subtitle: const Text('通过手机或电脑设置壁纸和天气'),
               trailing: const Icon(Icons.chevron_right, size: 20),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
