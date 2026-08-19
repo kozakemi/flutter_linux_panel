@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'wallpaper_service.dart';
 import 'weather_service.dart';
+import '../home_assistant/home_assistant_service.dart';
 import '../launchpad/services/serial_port_service.dart';
 import 'remote_launchpad_service.dart';
 
@@ -21,6 +22,7 @@ class RemoteWebService extends ChangeNotifier {
   static const int discoveryPort = 19081;
   static const int _maxUploadBytes = 20 * 1024 * 1024;
   static const String _enabledKey = 'remote_web_enabled';
+  static const String _interfaceKey = 'remote_web_interface';
 
   HttpServer? _server;
   RawDatagramSocket? _discoverySocket;
@@ -28,6 +30,8 @@ class RemoteWebService extends ChangeNotifier {
   String? _error;
   String _token = '';
   List<String> _addresses = const <String>[];
+  List<RemoteNetworkAddress> _networkAddresses = const <RemoteNetworkAddress>[];
+  String? _selectedInterface;
   final Map<String, String> _pairedClients = {};
   String _deviceId = '';
 
@@ -37,12 +41,16 @@ class RemoteWebService extends ChangeNotifier {
   bool get starting => _starting;
   String? get error => _error;
   List<String> get addresses => List<String>.unmodifiable(_addresses);
+  List<RemoteNetworkAddress> get networkAddresses =>
+      List<RemoteNetworkAddress>.unmodifiable(_networkAddresses);
+  String? get selectedInterface => _selectedInterface;
   String? get primaryUrl =>
       _addresses.isEmpty ? null : _urlForAddress(_addresses.first);
 
   Future<void> initialize() async {
     await RemoteLaunchpadService.instance.initialize();
     final prefs = await SharedPreferences.getInstance();
+    _selectedInterface = prefs.getString(_interfaceKey);
     _deviceId = prefs.getString('remote_device_id') ?? '';
     if (_deviceId.isEmpty) {
       _deviceId = _randomSecret(12);
@@ -80,9 +88,13 @@ class RemoteWebService extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
+      await refreshAddresses();
       _token = _generateToken();
+      final selectedAddress = _networkAddresses
+          .where((item) => item.name == _selectedInterface)
+          .firstOrNull;
       _server = await HttpServer.bind(
-        InternetAddress.anyIPv4,
+        selectedAddress?.address ?? InternetAddress.anyIPv4,
         port,
         shared: true,
       );
@@ -125,18 +137,47 @@ class RemoteWebService extends ChangeNotifier {
         includeLoopback: false,
         includeLinkLocal: false,
       );
-      final wireless = <String>[];
-      final others = <String>[];
+      final wireless = <RemoteNetworkAddress>[];
+      final others = <RemoteNetworkAddress>[];
       for (final interface in interfaces) {
+        if (interface.addresses.isEmpty) continue;
         final target = _isWireless(interface.name) ? wireless : others;
-        target.addAll(interface.addresses.map((address) => address.address));
+        target.add(RemoteNetworkAddress(
+          name: interface.name,
+          address: interface.addresses.first,
+        ));
       }
-      _addresses = <String>[...wireless, ...others];
+      _networkAddresses = <RemoteNetworkAddress>[...wireless, ...others];
+      if (_selectedInterface != null &&
+          !_networkAddresses.any((item) => item.name == _selectedInterface)) {
+        _selectedInterface = null;
+      }
+      _addresses = _selectedInterface == null
+          ? _networkAddresses.map((item) => item.address.address).toList()
+          : _networkAddresses
+              .where((item) => item.name == _selectedInterface)
+              .map((item) => item.address.address)
+              .toList();
       notifyListeners();
     } catch (error) {
       _error = '获取本机地址失败：$error';
       notifyListeners();
     }
+  }
+
+  Future<void> setInterface(String? name) async {
+    if (_selectedInterface == name) return;
+    _selectedInterface = name;
+    final prefs = await SharedPreferences.getInstance();
+    if (name == null) {
+      await prefs.remove(_interfaceKey);
+    } else {
+      await prefs.setString(_interfaceKey, name);
+    }
+    final wasEnabled = enabled;
+    if (wasEnabled) await stop();
+    await refreshAddresses();
+    if (wasEnabled) await start();
   }
 
   Future<void> _serve(HttpServer server) async {
@@ -200,6 +241,14 @@ class RemoteWebService extends ChangeNotifier {
       if (request.method == 'POST' &&
           request.uri.path == '/api/weather-config') {
         await _handleWeatherConfiguration(request);
+        return;
+      }
+      if (request.method == 'GET' && request.uri.path == '/api/ha-config') {
+        await _sendHaConfiguration(request.response);
+        return;
+      }
+      if (request.method == 'POST' && request.uri.path == '/api/ha-config') {
+        await _handleHaConfiguration(request);
         return;
       }
       if (request.method == 'GET' && request.uri.path == '/api/serial') {
@@ -435,6 +484,39 @@ class RemoteWebService extends ChangeNotifier {
     );
   }
 
+  Future<void> _sendHaConfiguration(HttpResponse response) async {
+    final homeAssistant = HomeAssistantService.instance;
+    await _sendJson(response, HttpStatus.ok, {
+      'ok': true,
+      'url': homeAssistant.url,
+      'configured': homeAssistant.configured,
+      'connected': homeAssistant.connected,
+    });
+  }
+
+  Future<void> _handleHaConfiguration(HttpRequest request) async {
+    final value = await _readJsonBody(request);
+    final url = value['url'] as String? ?? HomeAssistantService.defaultUrl;
+    final token = value['token'] as String? ?? '';
+    try {
+      await HomeAssistantService.instance.saveConfiguration(
+        url: url,
+        token: token,
+      );
+      await _sendJson(request.response, HttpStatus.ok, {
+        'ok': true,
+        'message': HomeAssistantService.instance.connected
+            ? 'Home Assistant 已连接'
+            : '配置已保存，正在连接 Home Assistant',
+      });
+    } catch (error) {
+      await _sendJson(request.response, HttpStatus.badRequest, {
+        'ok': false,
+        'error': '$error',
+      });
+    }
+  }
+
   Future<Map<String, dynamic>> _readJsonBody(HttpRequest request) async {
     if (request.contentLength > 64 * 1024) {
       throw const FormatException('请求数据过大');
@@ -629,6 +711,17 @@ class RemoteWebService extends ChangeNotifier {
   <button id="saveWeather">保存并刷新天气</button>
   <div id="weatherStatus"></div>
   <hr>
+  <h1>Home Assistant 设置</h1>
+  <p>长期访问令牌不会在网页中回显。留空表示保留当前令牌。</p>
+  <label class="field">Home Assistant 地址
+    <input id="haUrl" type="text" placeholder="http://127.0.0.1:8123">
+  </label>
+  <label class="field">长期访问令牌
+    <input id="haToken" type="password" autocomplete="off" placeholder="输入长期访问令牌">
+  </label>
+  <button id="saveHa">保存并连接</button>
+  <div id="haStatus"></div>
+  <hr>
   <h1>串口终端</h1>
   <p>页面关闭后串口仍保持打开，直至手动关闭。</p>
   <div class="row">
@@ -667,6 +760,10 @@ const locationInput = document.querySelector('#locationInput');
 const apiKey = document.querySelector('#apiKey');
 const saveWeather = document.querySelector('#saveWeather');
 const weatherStatus = document.querySelector('#weatherStatus');
+const haUrl = document.querySelector('#haUrl');
+const haToken = document.querySelector('#haToken');
+const saveHa = document.querySelector('#saveHa');
+const haStatus = document.querySelector('#haStatus');
 const serialDevice = document.querySelector('#serialDevice');
 const serialBaud = document.querySelector('#serialBaud');
 const serialParity = document.querySelector('#serialParity');
@@ -747,6 +844,40 @@ saveWeather.onclick = async () => {
   }
 };
 loadWeatherConfig();
+async function loadHaConfig() {
+  try {
+    const response = await fetch('/api/ha-config' + location.search);
+    const config = await response.json();
+    haUrl.value = config.url || 'http://127.0.0.1:8123';
+    haToken.placeholder = config.configured
+      ? '已配置；留空表示不修改'
+      : '请输入长期访问令牌';
+    haStatus.textContent = config.connected ? 'Home Assistant 已连接' : '';
+  } catch (error) {
+    haStatus.textContent = '读取 Home Assistant 配置失败：' + error.message;
+  }
+}
+saveHa.onclick = async () => {
+  saveHa.disabled = true;
+  haStatus.textContent = '正在安全保存并连接…';
+  try {
+    const response = await fetch('/api/ha-config' + location.search, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url: haUrl.value, token: haToken.value})
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || '保存失败');
+    haToken.value = '';
+    haToken.placeholder = '已配置；留空表示不修改';
+    haStatus.textContent = result.message;
+  } catch (error) {
+    haStatus.textContent = error.message;
+  } finally {
+    saveHa.disabled = false;
+  }
+};
+loadHaConfig();
 async function serialRequest(path, options) {
   const tokenQuery = location.search.replace(/^\?/, '');
   const response = await fetch(
@@ -848,4 +979,13 @@ setInterval(pollSerial, 300);
 </body>
 </html>
 ''';
+}
+
+class RemoteNetworkAddress {
+  const RemoteNetworkAddress({required this.name, required this.address});
+
+  final String name;
+  final InternetAddress address;
+
+  String get label => '$name · ${address.address}';
 }

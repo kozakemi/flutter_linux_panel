@@ -21,6 +21,7 @@ import 'package:intl/intl.dart';
 import 'settings_page.dart';
 import 'calendar_page.dart';
 import 'launchpad_page.dart';
+import 'home_assistant/home_assistant_service.dart';
 import 'global_tap_ripple.dart';
 import 'services/display_service.dart';
 import 'services/theme_service.dart';
@@ -51,6 +52,7 @@ void main() async {
   await WallpaperService.instance.initialize();
   await WeatherService.instance.initialize();
   await RemoteWebService.instance.initialize();
+  unawaited(HomeAssistantService.instance.initialize());
 
   // 初始化调试服务
   await DebugService.instance.initialize();

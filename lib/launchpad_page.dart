@@ -16,6 +16,7 @@ limitations under the License.
 
 import 'package:flutter/material.dart';
 
+import 'home_assistant/pages/ha_dashboard_page.dart';
 import 'launchpad/file_manager_page.dart';
 import 'launchpad/jlink_server_page.dart';
 import 'launchpad/jlink_rtt_page.dart';
@@ -89,6 +90,7 @@ class LaunchpadPage extends StatelessWidget {
     Icons.usb_outlined,
     Icons.cloud_outlined,
     Icons.vpn_key_outlined,
+    Icons.home_outlined,
   ];
 
   final List<String> labels = const [
@@ -98,6 +100,7 @@ class LaunchpadPage extends StatelessWidget {
     '串口预览',
     '天气',
     'Tailscale',
+    '智能家居',
   ];
 
   List<VoidCallback> getOnTapCallbacks(BuildContext context) {
@@ -120,11 +123,15 @@ class LaunchpadPage extends StatelessWidget {
       () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const TailscalePage()),
           ),
+      () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const HaDashboardPage()),
+          ),
     ];
   }
 
   List<VoidCallback> getOnLongPressCallbacks(BuildContext context) {
     return [
+      () => {},
       () => {},
       () => {},
       () => {},

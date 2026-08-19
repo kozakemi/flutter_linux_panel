@@ -7,7 +7,7 @@ cd "${ROOT_DIR}"
 
 PACKAGE_NAME="${PACKAGE_NAME:-flutter-linux-panel}"
 PACKAGE_VERSION="${PACKAGE_VERSION:-$(sed -n "s/^version: *\([^+]*\).*/\1/p" pubspec.yaml)}"
-PACKAGE_REVISION="${PACKAGE_REVISION:-1}"
+PACKAGE_REVISION="${PACKAGE_REVISION:-5}"
 PACKAGE_ARCH="arm64"
 BUILD_MODE="${BUILD_MODE:-release}"
 DOCKER="${DOCKER:-docker}"
@@ -31,8 +31,11 @@ mkdir -p \
   "${PACKAGE_ROOT}/DEBIAN" \
   "${PACKAGE_ROOT}/usr/bin" \
   "${PACKAGE_ROOT}/usr/lib/flutter-linux-panel" \
+  "${PACKAGE_ROOT}/usr/share/flutter-linux-panel" \
+  "${PACKAGE_ROOT}/etc/flutter-linux-panel" \
   "${PACKAGE_ROOT}/lib/systemd/system" \
   "${DIST_DIR}"
+chmod 0700 "${PACKAGE_ROOT}/etc/flutter-linux-panel"
 
 cp -a "${BUNDLE_DIR}" "${PACKAGE_ROOT}/usr/lib/flutter-linux-panel/bundle"
 install -m 0755 packaging/systemd-launch.sh \
@@ -41,6 +44,8 @@ install -m 0755 packaging/launcher.sh \
   "${PACKAGE_ROOT}/usr/bin/flutter-linux-panel"
 install -m 0644 packaging/flutter-linux-panel.service \
   "${PACKAGE_ROOT}/lib/systemd/system/flutter-linux-panel.service"
+install -m 0644 packaging/home-assistant.json \
+  "${PACKAGE_ROOT}/usr/share/flutter-linux-panel/home-assistant.json"
 
 cat > "${PACKAGE_ROOT}/DEBIAN/control" <<EOF
 Package: ${PACKAGE_NAME}
@@ -56,9 +61,41 @@ Description: Flutter touch panel for ARM64 Wayland devices
  control features. Includes a root systemd service for appliance deployments.
 EOF
 
+cat > "${PACKAGE_ROOT}/DEBIAN/preinst" <<'EOF'
+#!/bin/sh
+set -e
+
+config=/etc/flutter-linux-panel/home-assistant.json
+backup=/var/lib/flutter-linux-panel/home-assistant.json.preinst
+
+# Packages before revision 4 owned the live configuration as a regular file.
+# Preserve it before dpkg unpacks the new package and removes that old file.
+if [ -f "$config" ]; then
+    install -d -m 0700 /var/lib/flutter-linux-panel
+    cp -p "$config" "$backup"
+    chmod 0600 "$backup"
+fi
+EOF
+
 cat > "${PACKAGE_ROOT}/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
+
+config=/etc/flutter-linux-panel/home-assistant.json
+backup=/var/lib/flutter-linux-panel/home-assistant.json.preinst
+template=/usr/share/flutter-linux-panel/home-assistant.json
+
+install -d -m 0700 /etc/flutter-linux-panel
+if [ ! -f "$config" ]; then
+    if [ -f "$backup" ]; then
+        install -m 0600 "$backup" "$config"
+    else
+        install -m 0600 "$template" "$config"
+    fi
+fi
+chown root:root "$config"
+chmod 0600 "$config"
+rm -f "$backup"
 
 if command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload || true
@@ -86,6 +123,7 @@ fi
 EOF
 
 chmod 0755 \
+  "${PACKAGE_ROOT}/DEBIAN/preinst" \
   "${PACKAGE_ROOT}/DEBIAN/postinst" \
   "${PACKAGE_ROOT}/DEBIAN/prerm" \
   "${PACKAGE_ROOT}/DEBIAN/postrm"

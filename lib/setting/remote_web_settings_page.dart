@@ -86,6 +86,31 @@ class _RemoteWebSettingsPageState extends State<RemoteWebSettingsPage> {
           if (_service.enabled) ...[
             const SizedBox(height: 16),
             Card(
+              child: ListTile(
+                leading: const Icon(Icons.settings_ethernet),
+                title: const Text('Web 访问网卡'),
+                subtitle: DropdownButton<String?>(
+                  value: _service.selectedInterface,
+                  isExpanded: true,
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('自动（所有网卡）'),
+                    ),
+                    for (final item in _service.networkAddresses)
+                      DropdownMenuItem<String?>(
+                        value: item.name,
+                        child: Text(item.label),
+                      ),
+                  ],
+                  onChanged: _service.starting
+                      ? null
+                      : (value) => _service.setInterface(value),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
