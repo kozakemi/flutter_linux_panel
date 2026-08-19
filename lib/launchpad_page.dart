@@ -21,6 +21,7 @@ import 'launchpad/jlink_server_page.dart';
 import 'launchpad/jlink_rtt_page.dart';
 import 'launchpad/remote_computer_page.dart';
 import 'launchpad/serial_preview_page.dart';
+import 'launchpad/tailscale_page.dart';
 import 'launchpad/weather_page.dart';
 import 'services/display_service.dart';
 import 'services/remote_launchpad_service.dart';
@@ -87,6 +88,7 @@ class LaunchpadPage extends StatelessWidget {
     Icons.terminal_outlined,
     Icons.usb_outlined,
     Icons.cloud_outlined,
+    Icons.vpn_key_outlined,
   ];
 
   final List<String> labels = const [
@@ -95,6 +97,7 @@ class LaunchpadPage extends StatelessWidget {
     'J-Link RTT',
     '串口预览',
     '天气',
+    'Tailscale',
   ];
 
   List<VoidCallback> getOnTapCallbacks(BuildContext context) {
@@ -114,11 +117,15 @@ class LaunchpadPage extends StatelessWidget {
       () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const WeatherPage()),
           ),
+      () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const TailscalePage()),
+          ),
     ];
   }
 
   List<VoidCallback> getOnLongPressCallbacks(BuildContext context) {
     return [
+      () => {},
       () => {},
       () => {},
       () => {},
